@@ -1144,7 +1144,99 @@ export const ProjectDetailPage: React.FC = () => {
                   Assigned Site Team ({projectAssignedTeam.length})
                 </span>
               </div>
-              <div className="overflow-x-auto">
+
+              {/* Mobile & Tablet Team Cards (Swipe Style) */}
+              <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                {projectAssignedTeam.map((assignment) => {
+                  const member =
+                    assignment.member ||
+                    teamMembers.find((m) => m.id === assignment.team_member_id);
+                  if (!member) return null;
+                  const cleanPhone = (member.phone || '').replace(/\D/g, '');
+                  return (
+                    <div key={assignment.id} className="swipe-team-card">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-xs text-[#5448ED] shrink-0">
+                            {member.full_name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 text-sm block truncate">
+                              {member.full_name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 block truncate">
+                              {member.role} {member.skill ? `• ${member.skill}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
+                          {assignment.role_on_project || member.role}
+                        </span>
+                      </div>
+
+                      {assignment.notes && (
+                        <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg italic">
+                          "{assignment.notes}"
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          {member.phone && (
+                            <a
+                              href={`tel:${member.phone}`}
+                              className="swipe-action-pill swipe-action-pill-call"
+                            >
+                              <Phone className="w-3 h-3" />
+                              <span>Call</span>
+                            </a>
+                          )}
+                          {cleanPhone && (
+                            <a
+                              href={`https://wa.me/${cleanPhone}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="swipe-action-pill swipe-action-pill-whatsapp"
+                            >
+                              <span>WhatsApp</span>
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingAssignment(assignment);
+                              setAssignTeamModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            title="Edit Project Role / Notes"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRemoveTeamTarget({
+                                id: assignment.id,
+                                name: member.full_name,
+                              })
+                            }
+                            className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                            title="Remove Assignment"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Full Table View (>= 1024px) */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -1445,7 +1537,34 @@ export const ProjectDetailPage: React.FC = () => {
                   </div>
 
                   {/* Summary of Items */}
-                  <div className="overflow-x-auto">
+                  {/* Mobile & Tablet BOQ Items (Swipe Style) */}
+                  <div className="sm:hidden space-y-1.5 py-1">
+                    {quote.items.map((it, i) => (
+                      <div key={it.id || i} className="swipe-boq-item">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-slate-900 text-xs block">
+                            {it.item_name}
+                          </span>
+                          {it.description && (
+                            <span className="text-[11px] text-slate-500 block truncate">
+                              {it.description}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {it.quantity} {it.unit} &times; {formatINR(it.rate)}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-slate-900 text-xs tabular-nums">
+                            {formatINR(it.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop BOQ Table (>= 640px) */}
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="text-slate-500 border-b border-slate-100 text-[11px]">
@@ -1542,8 +1661,71 @@ export const ProjectDetailPage: React.FC = () => {
                 No payments recorded against this project yet.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <>
+                {/* Mobile & Tablet Payment Cards (Swipe Style) */}
+                <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                  {projectPayments.map((pay) => (
+                    <div key={pay.id} className="swipe-detail-card">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 text-sm block font-mono">
+                            {pay.receipt_number}
+                          </span>
+                          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">
+                            {pay.transaction_reference || pay.notes || '—'}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-base font-extrabold text-emerald-600 block tabular-nums">
+                            +{formatINR(pay.amount)}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {formatDate(pay.payment_date, settings.date_format)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium text-[11px]">
+                            {pay.payment_type}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[11px]">
+                            {pay.payment_method}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadReceipt(pay)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 shadow-xs"
+                            title="Download Payment Receipt PDF"
+                          >
+                            <FileText className="w-3 h-3 text-[#5448ED]" /> Receipt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openQuickModal({
+                                type: 'payment',
+                                editPayment: pay,
+                              })
+                            }
+                            className="p-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            title="Edit Payment"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Full Table View (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-4">Receipt No.</th>
@@ -1607,7 +1789,8 @@ export const ProjectDetailPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
+            </>
+          )}
           </div>
 
           {/* Recorded Project Expenses */}
@@ -1640,8 +1823,54 @@ export const ProjectDetailPage: React.FC = () => {
                 No expenses linked to this project yet.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <>
+                {/* Mobile & Tablet Expense Cards (Swipe Style) */}
+                <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                  {projectExpenses.map((exp) => (
+                    <div key={exp.id} className="swipe-detail-card">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 text-sm block truncate">
+                            {exp.title}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-500 mt-0.5 block truncate">
+                            {exp.expense_code} &bull; {exp.vendor_name || '—'}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-base font-extrabold text-rose-600 block tabular-nums">
+                            -{formatINR(exp.amount)}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {formatDate(exp.expense_date, settings.date_format)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <Badge variant="default">{exp.category}</Badge>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'expense',
+                              editExpense: exp,
+                              projectId: project.id,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 shadow-xs"
+                          title="Edit Expense"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-slate-500" /> Edit
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Full Table View (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-4">Date</th>
@@ -1695,7 +1924,8 @@ export const ProjectDetailPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
+            </>
+          )}
           </div>
         </div>
       )}

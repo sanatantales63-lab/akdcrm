@@ -495,8 +495,83 @@ export const ClientDetailPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <>
+                {/* Mobile & Tablet Project Cards (Swipe Style) */}
+                <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                  {clientProjects.map((pf) => (
+                    <div
+                      key={pf.project.id}
+                      onClick={() => navigate(`/projects/${pf.project.id}`)}
+                      className="swipe-detail-card cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 text-sm block truncate hover:text-[#5448ED]">
+                            {pf.project.project_name}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono mt-0.5 block">
+                            {pf.project.project_code} &bull; {pf.project.category}
+                          </span>
+                        </div>
+                        <Badge variant={getProjectStatusVariant(pf.project.status)}>
+                          {pf.project.status}
+                        </Badge>
+                      </div>
+
+                      {/* Progress */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>Progress</span>
+                          <span className="font-bold text-slate-800">{pf.project.progress_percentage}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#5448ED] rounded-full"
+                            style={{ width: `${pf.project.progress_percentage}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Financial 3-column box */}
+                      <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl p-2.5 text-center text-xs">
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                            Value
+                          </span>
+                          <span className="font-bold text-slate-900 tabular-nums">
+                            {formatINR(pf.totalValue)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                            Received
+                          </span>
+                          <span className="font-bold text-emerald-600 tabular-nums">
+                            {formatINR(pf.paymentsReceived)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                            Balance
+                          </span>
+                          {pf.outstandingBalance > 0 ? (
+                            <span className="font-bold text-amber-600 tabular-nums">
+                              {formatINR(pf.outstandingBalance)}
+                            </span>
+                          ) : (
+                            <span className="font-bold text-emerald-600 text-[11px]">
+                              No Dues &#10003;
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Full Table View (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-4">Project</th>
@@ -549,10 +624,11 @@ export const ClientDetailPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </>
+          )}
+        </div>
 
-          {/* Client Quotations & BOQ */}
+        {/* Client Quotations & BOQ */}
           <div className="akd-card overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -592,8 +668,86 @@ export const ClientDetailPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <>
+                {/* Mobile & Tablet Quotation Cards (Swipe Style) */}
+                <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                  {clientQuotations.map((quote) => {
+                    const proj = clientProjects.find(
+                      (p) => p.project.id === quote.project_id
+                    );
+                    return (
+                      <div key={quote.id} className="swipe-detail-card">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 text-sm font-mono block">
+                              {quote.quotation_number}
+                              {quote.revision_number > 1 ? ` (Rev ${quote.revision_number})` : ''}
+                            </span>
+                            <span className="text-[11px] text-slate-500 mt-0.5 block truncate">
+                              Project: {proj?.project.project_name || 'General Project'}
+                            </span>
+                          </div>
+                          <Badge
+                            variant={
+                              quote.status === 'Accepted'
+                                ? 'success'
+                                : quote.status === 'Sent'
+                                ? 'indigo'
+                                : 'default'
+                            }
+                          >
+                            {quote.status}
+                          </Badge>
+                        </div>
+
+                        {/* Date & Validity */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 py-1 border-y border-slate-100">
+                          <span>Date: {formatDate(quote.quotation_date, settings.date_format)}</span>
+                          <span>Valid: {formatDate(quote.valid_until, settings.date_format)}</span>
+                        </div>
+
+                        {/* Amount & Actions */}
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <div>
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                              Total Quote
+                            </span>
+                            <span className="text-base font-bold text-[#5448ED] font-display tabular-nums">
+                              {formatINR(quote.total_amount)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPdfExportQuotation(quote)}
+                              className="swipe-card-action-btn call"
+                              title="Download Quotation PDF"
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
+                              <span>PDF</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingQuotation(quote);
+                                setQuotationModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                              title="Edit Quotation"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Full Table View (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-4">Quotation No.</th>
@@ -669,10 +823,11 @@ export const ClientDetailPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </>
+          )}
+        </div>
 
-          {/* Payment History */}
+        {/* Payment History */}
           <div className="akd-card overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -705,8 +860,61 @@ export const ClientDetailPage: React.FC = () => {
                 No payments recorded for this client yet.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <>
+                {/* Mobile & Tablet Payment Cards (Swipe Style) */}
+                <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+                  {clientPayments.map((pay) => {
+                    const proj = clientProjects.find(
+                      (p) => p.project.id === pay.project_id
+                    );
+                    return (
+                      <div key={pay.id} className="swipe-detail-card">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 text-sm block font-mono">
+                              {pay.receipt_number}
+                            </span>
+                            <span className="text-[11px] text-slate-500 mt-0.5 block truncate">
+                              {proj?.project.project_name || '—'}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-base font-extrabold text-emerald-600 block tabular-nums">
+                              +{formatINR(pay.amount)}
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              {formatDate(pay.payment_date, settings.date_format)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium text-[11px]">
+                              {pay.payment_type}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[11px]">
+                              {pay.payment_method}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadReceipt(pay)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 shadow-xs"
+                            title="Download Payment Receipt PDF"
+                          >
+                            <FileText className="w-3 h-3 text-[#5448ED]" /> Receipt
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Full Table View (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       <th className="py-3 px-4">Receipt No.</th>
@@ -763,12 +971,13 @@ export const ClientDetailPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
+    </div>
 
-      {/* Quotation Creation / Editing Modal */}
+    {/* Quotation Creation / Editing Modal */}
       {quotationModalOpen && (
         <QuotationModal
           isOpen={quotationModalOpen}

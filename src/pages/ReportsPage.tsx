@@ -713,38 +713,76 @@ export const ReportsPage: React.FC = () => {
               No monthly figures available.
             </div>
           ) : (
-            <div className="overflow-y-auto max-h-[290px]">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-                    <th className="py-2.5 px-4">Month</th>
-                    <th className="py-2.5 px-3 text-right">Received</th>
-                    <th className="py-2.5 px-3 text-right">Expenses</th>
-                    <th className="py-2.5 px-4 text-right">Net Flow</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {monthlySeries.map((m) => (
-                    <tr key={m.sortKey} className="hover:bg-slate-50/70">
-                      <td className="py-2.5 px-4 font-semibold text-slate-900">{m.month}</td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-emerald-600 font-semibold">
-                        {formatINR(m.paymentsReceived)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-rose-600">
-                        {formatINR(m.expenses)}
-                      </td>
-                      <td
-                        className={`py-2.5 px-4 text-right tabular-nums font-bold ${
+            <>
+              {/* Mobile Monthly Cards (Swipe Style) */}
+              <div className="sm:hidden p-3 space-y-2 max-h-[300px] overflow-y-auto">
+                {monthlySeries.map((m) => (
+                  <div
+                    key={m.sortKey}
+                    className="p-2.5 rounded-xl border border-slate-150 bg-slate-50/60 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-900 block">{m.month}</span>
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                        <span className="text-emerald-600 font-semibold tabular-nums">
+                          +{formatINR(m.paymentsReceived)}
+                        </span>
+                        <span className="text-slate-300">&bull;</span>
+                        <span className="text-rose-600 font-medium tabular-nums">
+                          -{formatINR(m.expenses)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-500 block uppercase font-semibold tracking-wider">
+                        Net Flow
+                      </span>
+                      <span
+                        className={`font-bold tabular-nums text-xs ${
                           m.netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'
                         }`}
                       >
                         {formatINR(m.netCashFlow)}
-                      </td>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop / Tablet Table (>= 640px) */}
+              <div className="hidden sm:block overflow-y-auto max-h-[290px]">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                      <th className="py-2.5 px-4">Month</th>
+                      <th className="py-2.5 px-3 text-right">Received</th>
+                      <th className="py-2.5 px-3 text-right">Expenses</th>
+                      <th className="py-2.5 px-4 text-right">Net Flow</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {monthlySeries.map((m) => (
+                      <tr key={m.sortKey} className="hover:bg-slate-50/70">
+                        <td className="py-2.5 px-4 font-semibold text-slate-900">{m.month}</td>
+                        <td className="py-2.5 px-3 text-right tabular-nums text-emerald-600 font-semibold">
+                          {formatINR(m.paymentsReceived)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums text-rose-600">
+                          {formatINR(m.expenses)}
+                        </td>
+                        <td
+                          className={`py-2.5 px-4 text-right tabular-nums font-bold ${
+                            m.netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                          }`}
+                        >
+                          {formatINR(m.netCashFlow)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -770,84 +808,188 @@ export const ReportsPage: React.FC = () => {
             No projects match the selected report filters.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                  <th className="py-3 px-4">Project ID</th>
-                  <th className="py-3 px-4">Project Name</th>
-                  <th className="py-3 px-4">Client Name</th>
-                  <th className="py-3 px-4 text-right">Project Value</th>
-                  <th className="py-3 px-4 text-right">Payments Received</th>
-                  <th className="py-3 px-4 text-right">Outstanding Balance</th>
-                  <th className="py-3 px-4 text-right">Recorded Expenses</th>
-                  <th className="py-3 px-4">Project Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {scopedProjectFinancials.map((pf) => (
-                  <tr
-                    key={pf.project.id}
-                    onClick={() => navigate(`/projects/${pf.project.id}`)}
-                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
-                  >
-                    <td className="py-3.5 px-4 font-mono text-slate-600">
-                      {pf.project.project_code}
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900 hover:text-[#5448ED]">
-                      {pf.project.project_name}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-800">
-                      {pf.client?.full_name || '—'}
-                    </td>
-                    <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-slate-900">
-                      {formatINR(pf.totalValue)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-emerald-600">
-                      {formatINR(pf.paymentsReceived)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-amber-600">
-                      {formatINR(pf.outstandingBalance)}
-                    </td>
-                    <td className="py-3.5 px-4 text-right tabular-nums font-medium text-rose-600">
-                      {formatINR(pf.recordedExpenses)}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant={getProjectStatusVariant(pf.project.status)}>
-                        {pf.project.status}
-                      </Badge>
-                    </td>
+          <>
+            {/* Mobile & Tablet Financial Report Cards (Swipe Style) */}
+            <div className="lg:hidden p-3.5 space-y-3 bg-slate-50/40">
+              {scopedProjectFinancials.map((pf) => (
+                <div
+                  key={pf.project.id}
+                  onClick={() => navigate(`/projects/${pf.project.id}`)}
+                  className="swipe-report-card cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-bold text-slate-900 text-sm block truncate hover:text-[#5448ED]">
+                        {pf.project.project_name}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono mt-0.5 block truncate">
+                        {pf.project.project_code} &bull; {pf.client?.full_name || '—'}
+                      </span>
+                    </div>
+                    <Badge variant={getProjectStatusVariant(pf.project.status)}>
+                      {pf.project.status}
+                    </Badge>
+                  </div>
+
+                  {/* 4-cell financial grid */}
+                  <div className="swipe-report-grid-4">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Value
+                      </span>
+                      <span className="font-bold text-slate-900 tabular-nums">
+                        {formatINR(pf.totalValue)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Received
+                      </span>
+                      <span className="font-bold text-emerald-600 tabular-nums">
+                        {formatINR(pf.paymentsReceived)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Balance
+                      </span>
+                      {pf.outstandingBalance > 0 ? (
+                        <span className="font-bold text-amber-600 tabular-nums">
+                          {formatINR(pf.outstandingBalance)}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-emerald-600 text-[11px]">
+                          No Dues &#10003;
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Expenses
+                      </span>
+                      <span className="font-bold text-rose-600 tabular-nums">
+                        {formatINR(pf.recordedExpenses)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Mobile Total Summary Card */}
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-900 pb-2 border-b border-slate-100">
+                  <span>TOTAL ({scopedProjectFinancials.length} Projects)</span>
+                  <span className="text-[#5448ED]">Financial Summary</span>
+                </div>
+                <div className="swipe-report-grid-4">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Value</span>
+                    <span className="font-extrabold text-slate-900 tabular-nums text-xs">
+                      {formatINR(safeSum(scopedProjectFinancials.map((p) => p.totalValue)))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Received</span>
+                    <span className="font-extrabold text-emerald-600 tabular-nums text-xs">
+                      {formatINR(safeSum(scopedProjectFinancials.map((p) => p.paymentsReceived)))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Balance</span>
+                    <span className="font-extrabold text-amber-600 tabular-nums text-xs">
+                      {formatINR(safeSum(scopedProjectFinancials.map((p) => p.outstandingBalance)))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Expenses</span>
+                    <span className="font-extrabold text-rose-600 tabular-nums text-xs">
+                      {formatINR(safeSum(scopedProjectFinancials.map((p) => p.recordedExpenses)))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop Full Table View (>= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="py-3 px-4">Project ID</th>
+                    <th className="py-3 px-4">Project Name</th>
+                    <th className="py-3 px-4">Client Name</th>
+                    <th className="py-3 px-4 text-right">Project Value</th>
+                    <th className="py-3 px-4 text-right">Payments Received</th>
+                    <th className="py-3 px-4 text-right">Outstanding Balance</th>
+                    <th className="py-3 px-4 text-right">Recorded Expenses</th>
+                    <th className="py-3 px-4">Project Status</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
-                  <td className="py-3.5 px-4">TOTAL</td>
-                  <td className="py-3.5 px-4">{scopedProjectFinancials.length} Projects</td>
-                  <td className="py-3.5 px-4" />
-                  <td className="py-3.5 px-4 text-right tabular-nums">
-                    {formatINR(safeSum(scopedProjectFinancials.map((p) => p.totalValue)))}
-                  </td>
-                  <td className="py-3.5 px-4 text-right tabular-nums text-emerald-600">
-                    {formatINR(
-                      safeSum(scopedProjectFinancials.map((p) => p.paymentsReceived))
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right tabular-nums text-amber-600">
-                    {formatINR(
-                      safeSum(scopedProjectFinancials.map((p) => p.outstandingBalance))
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right tabular-nums text-rose-600">
-                    {formatINR(
-                      safeSum(scopedProjectFinancials.map((p) => p.recordedExpenses))
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4" />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {scopedProjectFinancials.map((pf) => (
+                    <tr
+                      key={pf.project.id}
+                      onClick={() => navigate(`/projects/${pf.project.id}`)}
+                      className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3.5 px-4 font-mono text-slate-600">
+                        {pf.project.project_code}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 hover:text-[#5448ED]">
+                        {pf.project.project_name}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-800">
+                        {pf.client?.full_name || '—'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-slate-900">
+                        {formatINR(pf.totalValue)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-emerald-600">
+                        {formatINR(pf.paymentsReceived)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right tabular-nums font-semibold text-amber-600">
+                        {formatINR(pf.outstandingBalance)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right tabular-nums font-medium text-rose-600">
+                        {formatINR(pf.recordedExpenses)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant={getProjectStatusVariant(pf.project.status)}>
+                          {pf.project.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
+                    <td className="py-3.5 px-4">TOTAL</td>
+                    <td className="py-3.5 px-4">{scopedProjectFinancials.length} Projects</td>
+                    <td className="py-3.5 px-4" />
+                    <td className="py-3.5 px-4 text-right tabular-nums">
+                      {formatINR(safeSum(scopedProjectFinancials.map((p) => p.totalValue)))}
+                    </td>
+                    <td className="py-3.5 px-4 text-right tabular-nums text-emerald-600">
+                      {formatINR(
+                        safeSum(scopedProjectFinancials.map((p) => p.paymentsReceived))
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-right tabular-nums text-amber-600">
+                      {formatINR(
+                        safeSum(scopedProjectFinancials.map((p) => p.outstandingBalance))
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-right tabular-nums text-rose-600">
+                      {formatINR(
+                        safeSum(scopedProjectFinancials.map((p) => p.recordedExpenses))
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

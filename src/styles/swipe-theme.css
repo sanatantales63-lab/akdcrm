@@ -657,6 +657,111 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
+/* ----- CLIENT DETAIL PAGE STYLES ----- */
+.swipe-detail-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s ease;
+}
+
+.swipe-detail-card:active {
+  background: #F8FAFC;
+  transform: scale(0.99);
+}
+
+/* ----- PROJECT DETAIL PAGE STYLES ----- */
+.swipe-team-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+.swipe-boq-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swipe-boq-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #F8FAFC;
+  border-radius: var(--swipe-radius-md);
+  border: 1px solid #F1F5F9;
+}
+
+/* ----- REPORTS PAGE STYLES ----- */
+.swipe-report-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s ease;
+}
+
+.swipe-report-card:active {
+  background: #F8FAFC;
+  transform: scale(0.99);
+}
+
+.swipe-report-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: #F8FAFC;
+  padding: 10px;
+  border-radius: var(--swipe-radius-md);
+  border: 1px solid #F1F5F9;
+}
+
+@media (min-width: 640px) {
+  .swipe-report-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.swipe-report-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.swipe-report-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--swipe-text-muted);
+}
+
+.swipe-report-stat-val {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
 /* --------------------------------------------------------------------------
    11. TOUCH TARGET & SAFE SCROLL OPTIMIZATIONS
    -------------------------------------------------------------------------- */
