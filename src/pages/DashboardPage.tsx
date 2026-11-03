@@ -336,9 +336,211 @@ export const DashboardPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-7">
-      {/* Mixpanel-style Greeting & Quick Action Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 sm:space-y-7">
+      {/* -------------------------------------------------------------
+          SWIPE-STYLE MOBILE & TABLET HERO & QUICK ACTIONS (< 1024px)
+          ------------------------------------------------------------- */}
+      <div className="lg:hidden space-y-4">
+        {/* Mobile Header Card with Glassmorphic Dual Metrics */}
+        <div className="swipe-glass-card p-4 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                {greeting}
+              </span>
+              <h1 className="text-lg font-bold text-slate-900 font-display truncate">
+                {settings.business_name}
+              </h1>
+            </div>
+            {/* Mobile Preset Selector */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[11px]">
+              {(
+                [
+                  { id: '30d', label: '30D' },
+                  { id: 'fy', label: 'FY' },
+                  { id: 'all', label: 'All' },
+                ] as Array<{ id: DatePreset; label: string }>
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handlePresetChange(item.id)}
+                  className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                    dateFilter.preset === item.id
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Swipe App Dual Metric Strip (Received vs Due) */}
+          <div className="swipe-metric-strip">
+            <div
+              onClick={() => navigate('/payments')}
+              className="swipe-metric-box swipe-metric-box-collect cursor-pointer"
+            >
+              <div className="swipe-metric-label text-emerald-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Collected</span>
+              </div>
+              <div className="swipe-metric-amount text-emerald-900">
+                {formatINR(summaryMetrics.totalPaymentsReceived)}
+              </div>
+              <span className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                Receipts ledger &rarr;
+              </span>
+            </div>
+
+            <div
+              onClick={() => navigate('/payments')}
+              className="swipe-metric-box swipe-metric-box-pay cursor-pointer"
+            >
+              <div className="swipe-metric-label text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                <span>Pending Due</span>
+              </div>
+              <div className="swipe-metric-amount text-amber-900">
+                {formatINR(summaryMetrics.totalOutstandingPayments)}
+              </div>
+              <span className="text-[10px] text-amber-700 font-medium mt-0.5">
+                Receivables &rarr;
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Swipe Quick "Create" Grid (Image 1 & 3 Aesthetic) */}
+        <div className="swipe-glass-card p-3.5 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+              Quick Actions
+            </span>
+            <span className="text-[10px] text-[#5448ED] font-semibold">
+              1-Tap Entry
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 pt-1">
+            {/* 1. Client */}
+            <button
+              type="button"
+              onClick={() => openQuickModal({ type: 'client' })}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-indigo-50 text-[#5448ED] border border-indigo-100">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">+ Client</span>
+            </button>
+
+            {/* 2. Project */}
+            <button
+              type="button"
+              onClick={() => openQuickModal({ type: 'project' })}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-blue-50 text-blue-600 border border-blue-100">
+                <FolderPlus className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">+ Project</span>
+            </button>
+
+            {/* 3. Payment */}
+            <button
+              type="button"
+              onClick={() => openQuickModal({ type: 'payment' })}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-emerald-50 text-emerald-600 border border-emerald-100">
+                <PlusCircle className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">+ Payment</span>
+            </button>
+
+            {/* 4. Expense */}
+            <button
+              type="button"
+              onClick={() => openQuickModal({ type: 'expense' })}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-rose-50 text-rose-600 border border-rose-100">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">+ Expense</span>
+            </button>
+
+            {/* 5. Enquiry */}
+            <button
+              type="button"
+              onClick={() => openQuickModal({ type: 'enquiry' })}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-amber-50 text-amber-600 border border-amber-100">
+                <MessageSquarePlus className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">+ Enquiry</span>
+            </button>
+
+            {/* 6. Quotation / Projects */}
+            <button
+              type="button"
+              onClick={() => navigate('/projects')}
+              className="swipe-quick-tile"
+            >
+              <div className="swipe-quick-icon-box bg-violet-50 text-violet-600 border border-violet-100">
+                <FileText className="w-5 h-5" />
+              </div>
+              <span className="swipe-quick-label">Quotes</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Swipe Quick Access Shortcuts (2x2 Grid) */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div
+            onClick={() => navigate('/projects')}
+            className="swipe-quick-access-card"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 border border-amber-200/70 flex items-center justify-center shrink-0">
+              <FolderKanban className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">
+                Active Works
+              </p>
+              <p className="text-[11px] font-semibold text-amber-600">
+                {summaryMetrics.activeProjects} In Progress
+              </p>
+            </div>
+          </div>
+
+          <div
+            onClick={() => navigate('/clients')}
+            className="swipe-quick-access-card"
+          >
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/70 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">
+                Clients
+              </p>
+              <p className="text-[11px] font-semibold text-emerald-600">
+                {summaryMetrics.totalClients} Registered
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* -------------------------------------------------------------
+          DESKTOP GREETING & HEADER (Visible on >= 1024px)
+          ------------------------------------------------------------- */}
+      <div className="hidden lg:flex lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 font-display tracking-tight">
             {greeting}

@@ -1,0 +1,703 @@
+/* ==========================================================================
+   SWIPE APP THEME & RESPONSIVE DESIGN SYSTEM (MOBILE, TABLET & DESKTOP)
+   ==========================================================================
+   Purpose: Centralized styling file for the entire AKD Interior CRM.
+   If you ever want to restyle, change colors, glassmorphism, or card layouts
+   using Claude or any LLM, you only need to edit THIS SINGLE FILE!
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. DESIGN TOKENS & CSS VARIABLES
+   -------------------------------------------------------------------------- */
+:root {
+  /* Brand Primary Colors (Swipe / Linear modern aesthetic) */
+  --swipe-primary: #5448ED;
+  --swipe-primary-hover: #4338CA;
+  --swipe-primary-light: #EEF2FF;
+  --swipe-primary-soft: rgba(84, 72, 237, 0.08);
+
+  /* Accent & Status Colors */
+  --swipe-success: #10B981;
+  --swipe-success-light: #ECFDF5;
+  --swipe-success-border: #A7F3D0;
+  --swipe-danger: #EF4444;
+  --swipe-danger-light: #FEF2F2;
+  --swipe-danger-border: #FECACA;
+  --swipe-warning: #F59E0B;
+  --swipe-warning-light: #FFFBEB;
+  --swipe-warning-border: #FDE68A;
+  --swipe-info: #0284C7;
+  --swipe-info-light: #F0F9FF;
+
+  /* Backgrounds & Surface (Sleek Canvas) */
+  --swipe-bg: #F8FAFC;
+  --swipe-surface: #FFFFFF;
+  --swipe-surface-subtle: #F1F5F9;
+
+  /* Glassmorphism System */
+  --swipe-glass-bg: rgba(255, 255, 255, 0.85);
+  --swipe-glass-bg-hover: rgba(255, 255, 255, 0.98);
+  --swipe-glass-border: rgba(226, 232, 240, 0.85);
+  --swipe-glass-blur: blur(14px);
+  --swipe-glass-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --swipe-glass-shadow-lg: 0 12px 32px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+
+  /* Text Typography Colors */
+  --swipe-text-headline: #0F172A;
+  --swipe-text-body: #334155;
+  --swipe-text-muted: #64748B;
+  --swipe-text-subtle: #94A3B8;
+
+  /* Border Radii */
+  --swipe-radius-sm: 8px;
+  --swipe-radius-md: 12px;
+  --swipe-radius-lg: 16px;
+  --swipe-radius-xl: 20px;
+  --swipe-radius-pill: 9999px;
+
+  /* Dimensions & Safe Areas */
+  --swipe-bottom-nav-height: 64px;
+  --swipe-header-mobile-height: 56px;
+}
+
+/* --------------------------------------------------------------------------
+   2. GLASSMORPHISM & CONTAINER UTILITIES
+   -------------------------------------------------------------------------- */
+.swipe-glass-card {
+  background: var(--swipe-glass-bg);
+  backdrop-filter: var(--swipe-glass-blur);
+  -webkit-backdrop-filter: var(--swipe-glass-blur);
+  border: 1px solid var(--swipe-glass-border);
+  border-radius: var(--swipe-radius-lg);
+  box-shadow: var(--swipe-glass-shadow);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swipe-glass-card:hover {
+  background: var(--swipe-glass-bg-hover);
+  border-color: rgba(203, 213, 225, 0.95);
+  box-shadow: var(--swipe-glass-shadow-lg);
+}
+
+.swipe-card-solid {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+
+/* --------------------------------------------------------------------------
+   3. MOBILE TOP HEADER (SWIPE APP BRAND & WORKSPACE BAR)
+   -------------------------------------------------------------------------- */
+.swipe-mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--swipe-header-mobile-height);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: var(--swipe-glass-blur);
+  -webkit-backdrop-filter: var(--swipe-glass-blur);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.swipe-mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swipe-mobile-brand-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--swipe-text-headline);
+  line-height: 1.2;
+}
+
+.swipe-mobile-brand-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--swipe-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   4. DOCKED MOBILE BOTTOM NAVIGATION BAR (SWIPE APP STYLE)
+   -------------------------------------------------------------------------- */
+.swipe-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  height: var(--swipe-bottom-nav-height);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.swipe-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 100%;
+  color: var(--swipe-text-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.swipe-nav-btn:active {
+  transform: scale(0.94);
+}
+
+.swipe-nav-btn.active {
+  color: var(--swipe-primary);
+  font-weight: 700;
+}
+
+.swipe-nav-btn.active .swipe-nav-icon-wrap {
+  background: var(--swipe-primary-light);
+  color: var(--swipe-primary);
+}
+
+.swipe-nav-icon-wrap {
+  width: 32px;
+  height: 28px;
+  border-radius: var(--swipe-radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  transition: all 0.2s ease;
+}
+
+/* Center Quick Action Floating Action Button (Swipe FAB) */
+.swipe-nav-fab-btn {
+  position: relative;
+  top: -14px;
+  width: 50px;
+  height: 50px;
+  border-radius: var(--swipe-radius-pill);
+  background: linear-gradient(135deg, #5448ED 0%, #3B82F6 100%);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(84, 72, 237, 0.38), 0 2px 6px rgba(0, 0, 0, 0.08);
+  border: 3px solid #FFFFFF;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+
+.swipe-nav-fab-btn:active {
+  transform: scale(0.9);
+}
+
+/* Floating Action Button for Pages (bottom right) */
+.swipe-page-fab {
+  position: fixed;
+  bottom: calc(var(--swipe-bottom-nav-height) + 16px);
+  right: 18px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #5448ED 0%, #3B82F6 100%);
+  color: #FFFFFF;
+  border-radius: var(--swipe-radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(84, 72, 237, 0.4), 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swipe-page-fab:active {
+  transform: scale(0.95);
+}
+
+@media (min-width: 1024px) {
+  .swipe-page-fab {
+    display: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. SWIPE "CREATE" QUICK ACTION GRID (CIRCULAR / SQUIRCLE ACTION TILES)
+   -------------------------------------------------------------------------- */
+.swipe-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 10px;
+  padding: 8px 2px;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .swipe-quick-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px 12px;
+  }
+}
+
+.swipe-quick-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease;
+}
+
+.swipe-quick-tile:active {
+  transform: scale(0.92);
+}
+
+.swipe-quick-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.swipe-quick-tile:hover .swipe-quick-icon-box {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.swipe-quick-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--swipe-text-headline);
+  line-height: 1.2;
+}
+
+/* --------------------------------------------------------------------------
+   6. SWIPE APP FINANCIAL METRIC DUAL-STRIP (YOU COLLECT / YOU PAY)
+   -------------------------------------------------------------------------- */
+.swipe-metric-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.swipe-metric-box {
+  padding: 12px 14px;
+  border-radius: var(--swipe-radius-lg);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.swipe-metric-box-collect {
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.9) 0%, rgba(209, 250, 229, 0.7) 100%);
+  border-color: rgba(167, 243, 208, 0.8);
+}
+
+.swipe-metric-box-pay {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.9) 0%, rgba(254, 226, 226, 0.7) 100%);
+  border-color: rgba(254, 202, 202, 0.8);
+}
+
+.swipe-metric-box-neutral {
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.9) 0%, rgba(224, 231, 255, 0.7) 100%);
+  border-color: rgba(199, 210, 254, 0.8);
+}
+
+.swipe-metric-box-amber {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.9) 0%, rgba(253, 230, 138, 0.7) 100%);
+  border-color: rgba(252, 211, 77, 0.8);
+}
+
+.swipe-metric-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swipe-metric-amount {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   7. HORIZONTAL FILTER PILLS & TAB SWITCHERS (SWIPE APP TABS)
+   -------------------------------------------------------------------------- */
+.swipe-pill-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.swipe-pill-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.swipe-pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--swipe-radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  color: var(--swipe-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swipe-pill-item:active {
+  transform: scale(0.95);
+}
+
+.swipe-pill-item.active {
+  background: var(--swipe-primary);
+  border-color: var(--swipe-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(84, 72, 237, 0.25);
+}
+
+/* --------------------------------------------------------------------------
+   8. SWIPE APP CARD LIST SYSTEM (CLEAN TOUCH CARDS FOR MOBILE & TABLET)
+   -------------------------------------------------------------------------- */
+.swipe-list-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swipe-list-card:active {
+  transform: scale(0.99);
+  background: #F8FAFC;
+}
+
+.swipe-list-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+/* Avatar circle with initials */
+.swipe-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--swipe-radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
+}
+
+/* Status Badges */
+.swipe-badge-open {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+  padding: 2px 8px;
+  border-radius: var(--swipe-radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.swipe-badge-closed {
+  background: #D1FAE5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
+  padding: 2px 8px;
+  border-radius: var(--swipe-radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.swipe-badge-partial {
+  background: #FFEDD5;
+  color: #C2410C;
+  border: 1px solid #FED7AA;
+  padding: 2px 8px;
+  border-radius: var(--swipe-radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* Quick Action Button Pill on Card */
+.swipe-card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--swipe-radius-md);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: var(--swipe-text-body);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swipe-card-action-btn:active {
+  transform: scale(0.95);
+  background: #F1F5F9;
+}
+
+.swipe-card-action-btn.whatsapp {
+  background: #25D366;
+  border-color: #25D366;
+  color: #FFFFFF;
+}
+
+.swipe-card-action-btn.call {
+  background: #EEF2FF;
+  border-color: #C7D2FE;
+  color: var(--swipe-primary);
+}
+
+/* --------------------------------------------------------------------------
+   9. QUICK CREATE BOTTOM SHEET (SWIPE STYLE DRAWER)
+   -------------------------------------------------------------------------- */
+.swipe-bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: swipeFadeIn 0.18s ease-out;
+}
+
+.swipe-bottom-sheet-content {
+  width: 100%;
+  max-width: 540px;
+  background: #FFFFFF;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px)) 20px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
+  animation: swipeSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swipe-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #CBD5E1;
+  border-radius: 9999px;
+  margin: 0 auto 16px auto;
+}
+
+@keyframes swipeSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes swipeFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   10. PAGE-SPECIFIC DESIGN SECTIONS
+   -------------------------------------------------------------------------- */
+
+/* ----- DASHBOARD STYLES ----- */
+.swipe-dashboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.swipe-quick-access-card {
+  padding: 14px;
+  border-radius: var(--swipe-radius-lg);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.swipe-quick-access-card:active {
+  transform: scale(0.97);
+  background: #F8FAFC;
+}
+
+/* ----- CLIENTS PAGE STYLES ----- */
+.swipe-client-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+/* ----- PROJECTS PAGE STYLES ----- */
+.swipe-project-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+/* ----- PAYMENTS PAGE STYLES ----- */
+.swipe-payment-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+/* ----- EXPENSES PAGE STYLES ----- */
+.swipe-expense-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+/* ----- ENQUIRIES PAGE STYLES ----- */
+.swipe-enquiry-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--swipe-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+/* --------------------------------------------------------------------------
+   11. TOUCH TARGET & SAFE SCROLL OPTIMIZATIONS
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+  /* Ensure page content has bottom clearance for bottom navigation */
+  .swipe-mobile-padding-bottom {
+    padding-bottom: calc(var(--swipe-bottom-nav-height) + 32px) !important;
+  }
+
+  /* Minimum touch targets */
+  .swipe-touch-target {
+    min-height: 42px;
+  }
+
+  /* Tables hidden on mobile/tablet cards */
+  .swipe-table-desktop {
+    display: none !important;
+  }
+
+  .swipe-cards-mobile {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* On desktop: show tables, hide mobile cards & bottom nav */
+  .swipe-bottom-nav {
+    display: none !important;
+  }
+
+  .swipe-mobile-header {
+    display: none !important;
+  }
+
+  .swipe-cards-mobile {
+    display: none !important;
+  }
+
+  .swipe-table-desktop {
+    display: block !important;
+  }
+}

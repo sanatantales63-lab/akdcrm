@@ -28,6 +28,7 @@ import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
 import { GlobalModalHost } from '@/components/modals/GlobalModalHost';
+import { SwipeMobileNav } from '@/components/layout/SwipeMobileNav';
 import { formatINR } from '@/lib/formatters';
 
 interface NavSectionItem {
@@ -864,10 +865,13 @@ export const AppLayout: React.FC = () => {
         </header>
 
         {/* Page Content Outlet */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto swipe-mobile-padding-bottom">
           <Outlet />
         </main>
       </div>
+
+      {/* Swipe Mobile & Tablet Navigation Bar */}
+      <SwipeMobileNav />
 
       {/* Global Quick Action Modals */}
       <GlobalModalHost />

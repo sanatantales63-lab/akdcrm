@@ -14,6 +14,9 @@ import {
   ChevronRight,
   MapPin,
   Clock,
+  Camera,
+  FileText,
+  Plus,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
@@ -262,6 +265,36 @@ export const ProjectsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Swipe Horizontal Filter Pills (Instant Tap Filtering) */}
+      <div className="swipe-pill-scroll">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('ALL');
+            setCategoryFilter('ALL');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${
+            statusFilter === 'ALL' && categoryFilter === 'ALL' ? 'active' : ''
+          }`}
+        >
+          All ({projectFinancials.length})
+        </button>
+        {PROJECT_STATUSES.map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === st ? 'ALL' : st);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${statusFilter === st ? 'active' : ''}`}
+          >
+            {st}
+          </button>
+        ))}
+      </div>
+
       {/* Search & Filters */}
       <div className="akd-card p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         <div className="relative flex-1">
@@ -371,7 +404,206 @@ export const ProjectsPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile & Tablet Project Cards (Swipe App Style) */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/40">
+              {paginatedProjects.map((item) => {
+                const { project, client } = item;
+                const deadline = getDeadlineInfo(
+                  project.expected_completion_date,
+                  project.status
+                );
+
+                return (
+                  <div
+                    key={project.id}
+                    className="swipe-list-card bg-white"
+                  >
+                    {/* Top Row: Project Name, Code & Status Badge */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="text-left font-bold text-slate-900 text-sm hover:text-[#5448ED] truncate block"
+                        >
+                          {project.project_name}
+                        </button>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium">{project.project_code}</span>
+                          <span>&bull;</span>
+                          <span>{project.category}</span>
+                        </div>
+                      </div>
+
+                      <Badge variant={getProjectStatusVariant(project.status)}>
+                        {project.status}
+                      </Badge>
+                    </div>
+
+                    {/* Middle Row: Client & Site Location */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-y border-slate-100 text-xs text-slate-600">
+                      <div>
+                        {client ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/clients/${client.id}`)}
+                            className="font-medium text-slate-800 hover:text-[#5448ED] truncate"
+                          >
+                            {client.full_name}
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">No client linked</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[170px]">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{project.property_location}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Strip */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">Work Progress</span>
+                        <span className="font-bold text-slate-800 font-display">
+                          {project.progress_percentage}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#5448ED] rounded-full transition-all"
+                          style={{ width: `${project.progress_percentage}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Financial Summary Strip */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl p-2.5 text-center">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Value
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 font-display tabular-nums">
+                          {formatINR(item.totalValue)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Received
+                        </span>
+                        <span className="text-xs font-bold text-emerald-600 font-display tabular-nums">
+                          {formatINR(item.paymentsReceived)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Due
+                        </span>
+                        {item.outstandingBalance > 0 ? (
+                          <span className="text-xs font-bold text-amber-600 font-display tabular-nums">
+                            {formatINR(item.outstandingBalance)}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold text-emerald-600">
+                            Cleared
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Target Deadline Badge if set */}
+                    {deadline.label && (
+                      <div className="flex items-center justify-between text-[11px] px-1 text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>Deadline: {formatDate(project.expected_completion_date)}</span>
+                        </span>
+                        <span
+                          className={`font-semibold ${
+                            deadline.isOverdue
+                              ? 'text-rose-600'
+                              : deadline.isApproaching
+                              ? 'text-amber-600'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          {deadline.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between gap-1.5 pt-1">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="swipe-card-action-btn call"
+                          title="Post Site Photo / Progress"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>Update</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'payment',
+                              projectId: project.id,
+                              clientId: project.client_id,
+                            })
+                          }
+                          className="swipe-card-action-btn"
+                          title="Record Payment"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Pay</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'project',
+                              editProject: project,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Archive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Full Table View (Visible on >= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -647,6 +879,16 @@ export const ProjectsPage: React.FC = () => {
         }
         confirmLabel="Archive Project"
       />
+      {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
+      <button
+        type="button"
+        onClick={() => openQuickModal({ type: 'project' })}
+        className="swipe-page-fab"
+        title="Create New Project"
+      >
+        <Plus className="w-4 h-4 stroke-[3]" />
+        <span>+ New Project</span>
+      </button>
     </div>
   );
 };

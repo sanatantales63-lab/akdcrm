@@ -12,6 +12,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
@@ -267,6 +268,36 @@ export const PaymentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Swipe Horizontal Filter Pills (Instant Tap Filtering) */}
+      <div className="swipe-pill-scroll">
+        <button
+          type="button"
+          onClick={() => {
+            setMethodFilter('ALL');
+            setTypeFilter('ALL');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${
+            methodFilter === 'ALL' && typeFilter === 'ALL' ? 'active' : ''
+          }`}
+        >
+          All ({payments.length})
+        </button>
+        {PAYMENT_METHODS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => {
+              setMethodFilter(methodFilter === m ? 'ALL' : m);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${methodFilter === m ? 'active' : ''}`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
       {/* Search & Multi-Filter Bar */}
       <div className="akd-card p-3.5 space-y-3">
         <div className="flex flex-col lg:flex-row gap-3">
@@ -428,7 +459,106 @@ export const PaymentsPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile & Tablet Payment Cards (Swipe App Style) */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/40">
+              {paginatedPayments.map((item) => {
+                const { payment, client, project } = item;
+                return (
+                  <div
+                    key={payment.id}
+                    className="swipe-list-card bg-white"
+                  >
+                    {/* Top Row: Client Name, Receipt & Big Green Amount */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 text-sm truncate block">
+                          {item.clientName}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium">{payment.receipt_number}</span>
+                          <span>&bull;</span>
+                          <span>{formatDate(payment.payment_date)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-base font-extrabold text-emerald-600 font-display tabular-nums block">
+                          +{formatINR(payment.amount)}
+                        </span>
+                        <span className="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-full">
+                          {payment.payment_method}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Project & Notes */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-y border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center gap-1.5 truncate max-w-[200px]">
+                        <span className="text-slate-400 font-medium">Project:</span>
+                        <span className="font-medium text-slate-800 truncate">{item.projectName}</span>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {payment.payment_type}
+                      </span>
+                    </div>
+
+                    {payment.transaction_reference && (
+                      <div className="text-[11px] text-slate-500 bg-slate-50 rounded-lg px-2 py-1 font-mono">
+                        Ref: {payment.transaction_reference}
+                      </div>
+                    )}
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadReceipt(payment)}
+                        className="swipe-card-action-btn call"
+                        title="Download Receipt PDF"
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                        <span>Receipt PDF</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setViewPayment(payment)}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'payment',
+                              editPayment: payment,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(payment)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Archive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Full Table View (Visible on >= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -706,6 +836,16 @@ export const PaymentsPage: React.FC = () => {
         }
         confirmLabel="Remove Payment"
       />
+      {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
+      <button
+        type="button"
+        onClick={() => openQuickModal({ type: 'payment' })}
+        className="swipe-page-fab"
+        title="Record New Payment"
+      >
+        <Plus className="w-4 h-4 stroke-[3]" />
+        <span>+ Payment</span>
+      </button>
     </div>
   );
 };

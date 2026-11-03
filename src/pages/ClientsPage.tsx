@@ -14,6 +14,9 @@ import {
   ChevronRight,
   Phone,
   MapPin,
+  MessageSquare,
+  PhoneCall,
+  Plus,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
@@ -145,6 +148,14 @@ export const ClientsPage: React.FC = () => {
     return parts.length ? parts.join(' | ') : 'All Active Clients';
   };
 
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase() || 'CL';
+  };
+
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
@@ -245,6 +256,56 @@ export const ClientsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Swipe Horizontal Filter Pills (Instant Tap Filtering) */}
+      <div className="swipe-pill-scroll">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('ALL');
+            setTypeFilter('ALL');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${
+            statusFilter === 'ALL' && typeFilter === 'ALL' ? 'active' : ''
+          }`}
+        >
+          All ({clientFinancials.length})
+        </button>
+        {CLIENT_STATUSES.map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === st ? 'ALL' : st);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${statusFilter === st ? 'active' : ''}`}
+          >
+            {st}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            setTypeFilter(typeFilter === 'Residential' ? 'ALL' : 'Residential');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${typeFilter === 'Residential' ? 'active' : ''}`}
+        >
+          Residential
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTypeFilter(typeFilter === 'Commercial' ? 'ALL' : 'Commercial');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${typeFilter === 'Commercial' ? 'active' : ''}`}
+        >
+          Commercial
+        </button>
+      </div>
+
       {/* Search & Filters Bar */}
       <div className="akd-card p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         <div className="relative flex-1">
@@ -330,7 +391,155 @@ export const ClientsPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile & Tablet Card View (Swipe App Customer Layout) */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/40">
+              {paginatedClients.map((item) => {
+                const { client } = item;
+                const cleanPhone = client.phone ? client.phone.replace(/\D/g, '') : '';
+                const cleanWa = (client.whatsapp || client.phone || '').replace(/\D/g, '');
+
+                return (
+                  <div
+                    key={client.id}
+                    className="swipe-list-card bg-white"
+                  >
+                    {/* Top Row: Avatar, Name, Status */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="swipe-avatar">
+                          {getInitials(client.full_name)}
+                        </div>
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/clients/${client.id}`)}
+                            className="text-left font-bold text-slate-900 text-sm hover:text-[#5448ED] truncate block"
+                          >
+                            {client.full_name}
+                          </button>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <span className="font-mono font-medium">{client.client_code}</span>
+                            <span>&bull;</span>
+                            <span>{client.client_type}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge variant={getClientStatusVariant(client.status)}>
+                        {client.status}
+                      </Badge>
+                    </div>
+
+                    {/* Middle Row: Phone & Location */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-y border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{client.phone}</span>
+                      </div>
+                      {client.property_location && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[170px]">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{client.property_location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financial Summary Strip on Card */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-2.5">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Total Value
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 font-display tabular-nums">
+                          {formatINR(item.totalProjectValue)}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Balance Due
+                        </span>
+                        {item.outstandingBalance > 0 ? (
+                          <span className="text-xs font-bold text-amber-600 font-display tabular-nums">
+                            {formatINR(item.outstandingBalance)}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold text-emerald-600">
+                            No Dues &#10003;
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between gap-1.5 pt-1">
+                      <div className="flex items-center gap-1.5">
+                        {cleanPhone && (
+                          <a
+                            href={`tel:${cleanPhone}`}
+                            className="swipe-card-action-btn call"
+                            title="Call Client"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            <span>Call</span>
+                          </a>
+                        )}
+                        {cleanWa && (
+                          <a
+                            href={`https://wa.me/${cleanWa.startsWith('91') ? cleanWa : `91${cleanWa}`}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="swipe-card-action-btn whatsapp"
+                            title="WhatsApp Client"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Chat</span>
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/clients/${client.id}`)}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="View Profile"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openQuickModal({ type: 'project', clientId: client.id })}
+                          className="p-1.5 rounded-lg bg-indigo-50 text-[#5448ED] hover:bg-indigo-100"
+                          title="New Project"
+                        >
+                          <FolderPlus className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openQuickModal({ type: 'client', editClient: client })}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Archive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Full Table View (Visible on >= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -586,6 +795,16 @@ export const ClientsPage: React.FC = () => {
         }
         confirmLabel="Archive Client"
       />
+      {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
+      <button
+        type="button"
+        onClick={() => openQuickModal({ type: 'client' })}
+        className="swipe-page-fab"
+        title="Add New Client"
+      >
+        <Plus className="w-4 h-4 stroke-[3]" />
+        <span>+ Add Client</span>
+      </button>
     </div>
   );
 };

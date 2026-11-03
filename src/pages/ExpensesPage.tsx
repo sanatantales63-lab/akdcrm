@@ -11,6 +11,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCRM } from '@/context/CRMContext';
@@ -301,6 +302,33 @@ export const ExpensesPage: React.FC = () => {
         </div>
       )}
 
+      {/* Swipe Horizontal Filter Pills (Instant Tap Filtering) */}
+      <div className="swipe-pill-scroll">
+        <button
+          type="button"
+          onClick={() => {
+            setCategoryFilter('ALL');
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${categoryFilter === 'ALL' ? 'active' : ''}`}
+        >
+          All ({expenses.length})
+        </button>
+        {settings.expense_categories.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => {
+              setCategoryFilter(categoryFilter === cat ? 'ALL' : cat);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${categoryFilter === cat ? 'active' : ''}`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
       {/* Search & Filters */}
       <div className="akd-card p-3.5 space-y-3">
         <div className="flex flex-col lg:flex-row gap-3">
@@ -423,7 +451,94 @@ export const ExpensesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile & Tablet Expense Cards (Swipe App Style) */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/40">
+              {paginatedExpenses.map((item) => {
+                const { expense, projectName } = item;
+                return (
+                  <div
+                    key={expense.id}
+                    className="swipe-list-card bg-white"
+                  >
+                    {/* Top Row: Title, Code & Big Red Amount */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 text-sm truncate block">
+                          {expense.title}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium">{expense.expense_code}</span>
+                          <span>&bull;</span>
+                          <span>{formatDate(expense.expense_date)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-base font-extrabold text-rose-600 font-display tabular-nums block">
+                          -{formatINR(expense.amount)}
+                        </span>
+                        <span className="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded-full">
+                          {expense.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Vendor & Project */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-y border-slate-100 text-xs text-slate-600">
+                      <div>
+                        <span className="text-slate-400 font-medium">Payee: </span>
+                        <span className="font-medium text-slate-800">{expense.vendor_name || '—'}</span>
+                      </div>
+                      <div className="text-right truncate max-w-[170px]">
+                        <span className="text-[11px] text-slate-500 truncate">
+                          {projectName || 'General Overhead'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setViewExpense(expense)}
+                        className="swipe-card-action-btn"
+                        title="View Details"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-600" />
+                        <span>View Voucher</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'expense',
+                              editExpense: expense,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(expense)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Archive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Full Table View (Visible on >= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -679,6 +794,16 @@ export const ExpensesPage: React.FC = () => {
         }
         confirmLabel="Remove Expense"
       />
+      {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
+      <button
+        type="button"
+        onClick={() => openQuickModal({ type: 'expense' })}
+        className="swipe-page-fab"
+        title="Record New Expense"
+      >
+        <Plus className="w-4 h-4 stroke-[3]" />
+        <span>+ Expense</span>
+      </button>
     </div>
   );
 };

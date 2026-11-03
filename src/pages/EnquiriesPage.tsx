@@ -16,6 +16,8 @@ import {
   MapPin,
   ExternalLink,
   MessageSquare,
+  PhoneCall,
+  Plus,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
@@ -278,6 +280,51 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Swipe Horizontal Filter Pills (Instant Tap Filtering) */}
+      <div className="swipe-pill-scroll">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('ALL');
+            setTypeFilter('ALL');
+            setOnlyOverdue(false);
+            setPage(1);
+          }}
+          className={`swipe-pill-item ${
+            statusFilter === 'ALL' && typeFilter === 'ALL' && !onlyOverdue ? 'active' : ''
+          }`}
+        >
+          All ({enquiries.length})
+        </button>
+
+        {metrics.overdueCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setOnlyOverdue(!onlyOverdue);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${onlyOverdue ? 'active' : ''} text-rose-600 border-rose-200`}
+          >
+            Overdue ({metrics.overdueCount})
+          </button>
+        )}
+
+        {ENQUIRY_STATUSES.map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === st ? 'ALL' : st);
+              setPage(1);
+            }}
+            className={`swipe-pill-item ${statusFilter === st ? 'active' : ''}`}
+          >
+            {st}
+          </button>
+        ))}
+      </div>
+
       {/* Filters & Search */}
       <div className="akd-card p-3.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         <div className="relative flex-1">
@@ -367,7 +414,170 @@ export const EnquiriesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Mobile & Tablet Enquiry Cards (Swipe App Style) */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/40">
+              {paginatedEnquiries.map((enq) => {
+                const overdue = isFollowUpOverdue(enq.follow_up_date, enq.status);
+                const cleanPhone = enq.phone ? enq.phone.replace(/\D/g, '') : '';
+                const cleanWa = (enq.phone || '').replace(/\D/g, '');
+
+                return (
+                  <div
+                    key={enq.id}
+                    className={`swipe-list-card bg-white ${
+                      overdue ? 'border-rose-300 ring-1 ring-rose-200' : ''
+                    }`}
+                  >
+                    {/* Top Row: Prospect Name, Code & Status */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 text-sm truncate block">
+                          {enq.name}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium">{enq.enquiry_code}</span>
+                          <span>&bull;</span>
+                          <span>{enq.project_type}</span>
+                        </div>
+                      </div>
+
+                      <Badge variant={getEnquiryStatusVariant(enq.status)}>
+                        {enq.status}
+                      </Badge>
+                    </div>
+
+                    {/* Middle Row: Phone & Location */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-y border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{enq.phone}</span>
+                      </div>
+                      {enq.property_location && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[170px]">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{enq.property_location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Budget & Follow-up Strip */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-2.5">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Est. Budget
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 font-display tabular-nums">
+                          {enq.estimated_budget ? formatINR(enq.estimated_budget) : 'Not specified'}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                          Next Follow-up
+                        </span>
+                        {enq.follow_up_date ? (
+                          <span
+                            className={`text-xs font-semibold tabular-nums ${
+                              overdue ? 'text-rose-600 font-bold' : 'text-slate-700'
+                            }`}
+                          >
+                            {formatDate(enq.follow_up_date)}
+                            {overdue && ' (Overdue)'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">None scheduled</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Latest Follow-up Note Snippet */}
+                    {enq.notes && (
+                      <p className="text-[11px] text-slate-600 bg-amber-50/60 border border-amber-100 rounded-lg p-2 line-clamp-2">
+                        {enq.notes}
+                      </p>
+                    )}
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between gap-1.5 pt-1">
+                      <div className="flex items-center gap-1.5">
+                        {cleanPhone && (
+                          <a
+                            href={`tel:${cleanPhone}`}
+                            className="swipe-card-action-btn call"
+                            title="Call Lead"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            <span>Call</span>
+                          </a>
+                        )}
+                        {cleanWa && (
+                          <a
+                            href={`https://wa.me/${cleanWa.startsWith('91') ? cleanWa : `91${cleanWa}`}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="swipe-card-action-btn whatsapp"
+                            title="WhatsApp Lead"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Chat</span>
+                          </a>
+                        )}
+                        {enq.status !== 'Converted' && (
+                          <button
+                            type="button"
+                            onClick={() => setConvertTarget(enq)}
+                            className="swipe-card-action-btn bg-indigo-50 border-indigo-200 text-[#5448ED]"
+                            title="Convert to Client"
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Convert</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNoteTarget(enq);
+                            setFollowUpNoteText('');
+                            setNextFollowUpDate(enq.follow_up_date || '');
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Add Note"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuickModal({
+                              type: 'enquiry',
+                              editEnquiry: enq,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(enq)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Archive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Full Table View (Visible on >= 1024px) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
@@ -715,6 +925,16 @@ export const EnquiriesPage: React.FC = () => {
         }
         confirmLabel="Archive Enquiry"
       />
+      {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
+      <button
+        type="button"
+        onClick={() => openQuickModal({ type: 'enquiry' })}
+        className="swipe-page-fab"
+        title="Log New Enquiry"
+      >
+        <Plus className="w-4 h-4 stroke-[3]" />
+        <span>+ Log Enquiry</span>
+      </button>
     </div>
   );
 };
