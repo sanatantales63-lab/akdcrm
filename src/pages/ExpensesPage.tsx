@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Package,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCRM } from '@/context/CRMContext';
@@ -26,6 +27,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { PurchaseBillModal } from '@/components/modals/PurchaseBillModal';
 import { exportExpensesExcel, exportExpensesPDF } from '@/lib/exporters';
 
 export const ExpensesPage: React.FC = () => {
@@ -51,6 +53,7 @@ export const ExpensesPage: React.FC = () => {
   const [viewExpense, setViewExpense] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [purchaseBillModalOpen, setPurchaseBillModalOpen] = useState(false);
 
   const projectMap = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
 
@@ -229,6 +232,13 @@ export const ExpensesPage: React.FC = () => {
             className="akd-btn-secondary h-[34px] px-3 text-xs"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => setPurchaseBillModalOpen(true)}
+            className="akd-btn-secondary h-[34px] px-3 text-xs"
+          >
+            <Package className="w-3.5 h-3.5 text-indigo-600" /> Record Purchase Bill
           </button>
           <button
             type="button"
@@ -794,6 +804,14 @@ export const ExpensesPage: React.FC = () => {
         }
         confirmLabel="Remove Expense"
       />
+      {/* Purchase Bill Modal */}
+      {purchaseBillModalOpen && (
+        <PurchaseBillModal
+          isOpen={purchaseBillModalOpen}
+          onClose={() => setPurchaseBillModalOpen(false)}
+        />
+      )}
+
       {/* Swipe Page Floating Action Button (Mobile & Tablet) */}
       <button
         type="button"

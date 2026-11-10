@@ -23,6 +23,8 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
+  CalendarCheck,
+  Package,
 } from 'lucide-react';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/context/AuthContext';
@@ -43,6 +45,8 @@ const PRIMARY_NAV_ITEMS: NavSectionItem[] = [
   { label: 'Clients', path: '/clients', icon: Users, section: 'data' },
   { label: 'Projects', path: '/projects', icon: FolderKanban, section: 'data' },
   { label: 'Enquiries', path: '/enquiries', icon: MessageSquareMore, section: 'data' },
+  { label: 'Team & Attendance', path: '/attendance', icon: CalendarCheck, section: 'data' },
+  { label: 'Materials & Stock', path: '/materials', icon: Package, section: 'data' },
   { label: 'Payments', path: '/payments', icon: IndianRupee, section: 'financials' },
   { label: 'Expenses', path: '/expenses', icon: Receipt, section: 'financials' },
   { label: 'Reports & Analytics', path: '/reports', icon: BarChart3, section: 'financials' },

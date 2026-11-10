@@ -14,10 +14,12 @@ import {
   QuotationItem,
   TeamMember,
   ProjectTeamAssignment,
+  TeamAttendance,
+  Material,
+  MaterialTransaction,
+  PurchaseBill,
   ProjectWorkUpdate,
   ProjectPhoto,
-  QuotationStatus,
-  WorkStage,
 } from '@/types/crm';
 import { crmRepository } from '@/services/database';
 import {
@@ -55,6 +57,10 @@ interface CRMContextValue {
   quotations: Quotation[];
   teamMembers: TeamMember[];
   teamAssignments: ProjectTeamAssignment[];
+  teamAttendance: TeamAttendance[];
+  materials: Material[];
+  materialTransactions: MaterialTransaction[];
+  purchaseBills: PurchaseBill[];
   workUpdates: ProjectWorkUpdate[];
   projectPhotos: ProjectPhoto[];
   isLoading: boolean;
@@ -169,6 +175,33 @@ interface CRMContextValue {
   ) => Promise<ProjectTeamAssignment>;
   removeTeamAssignment: (assignmentId: string) => Promise<void>;
 
+  createAttendance: (
+    input: Parameters<typeof crmRepository.createAttendance>[0]
+  ) => Promise<TeamAttendance>;
+  updateAttendance: (
+    id: string,
+    updates: Parameters<typeof crmRepository.updateAttendance>[1]
+  ) => Promise<TeamAttendance>;
+  deleteAttendance: (id: string) => Promise<void>;
+
+  createMaterial: (
+    input: Parameters<typeof crmRepository.createMaterial>[0]
+  ) => Promise<Material>;
+  updateMaterial: (
+    id: string,
+    updates: Partial<Material>
+  ) => Promise<Material>;
+  archiveMaterial: (id: string) => Promise<void>;
+  recordMaterialTransaction: (
+    input: Parameters<typeof crmRepository.recordMaterialTransaction>[0]
+  ) => Promise<{ transaction: MaterialTransaction; material: Material }>;
+  deleteMaterialTransaction: (id: string) => Promise<void>;
+
+  createPurchaseBill: (
+    input: Parameters<typeof crmRepository.createPurchaseBill>[0]
+  ) => Promise<PurchaseBill>;
+  archivePurchaseBill: (id: string) => Promise<void>;
+
   createWorkUpdate: (
     input: Parameters<typeof crmRepository.createWorkUpdate>[0]
   ) => Promise<ProjectWorkUpdate>;
@@ -272,6 +305,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamAssignments, setTeamAssignments] = useState<ProjectTeamAssignment[]>([]);
+  const [teamAttendance, setTeamAttendance] = useState<TeamAttendance[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialTransactions, setMaterialTransactions] = useState<MaterialTransaction[]>([]);
+  const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>([]);
   const [workUpdates, setWorkUpdates] = useState<ProjectWorkUpdate[]>([]);
   const [projectPhotos, setProjectPhotos] = useState<ProjectPhoto[]>([]);
   const [quickModal, setQuickModal] = useState<QuickModalPayload>({ type: null });
@@ -290,6 +327,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setQuotations(snapshot.quotations || []);
       setTeamMembers(snapshot.teamMembers || []);
       setTeamAssignments(snapshot.teamAssignments || []);
+      setTeamAttendance(snapshot.teamAttendance || []);
+      setMaterials(snapshot.materials || []);
+      setMaterialTransactions(snapshot.materialTransactions || []);
+      setPurchaseBills(snapshot.purchaseBills || []);
       setWorkUpdates(snapshot.workUpdates || []);
       setProjectPhotos(snapshot.projectPhotos || []);
     } finally {
@@ -740,6 +781,98 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   // --------------------------------------------------------------------------
+  // TEAM ATTENDANCE
+  // --------------------------------------------------------------------------
+  const createAttendance = useCallback(
+    async (input: Parameters<typeof crmRepository.createAttendance>[0]) => {
+      const res = await crmRepository.createAttendance(input);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const updateAttendance = useCallback(
+    async (id: string, updates: Parameters<typeof crmRepository.updateAttendance>[1]) => {
+      const res = await crmRepository.updateAttendance(id, updates);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const deleteAttendance = useCallback(
+    async (id: string) => {
+      await crmRepository.deleteAttendance(id);
+      await refreshData();
+    },
+    [refreshData]
+  );
+
+  // --------------------------------------------------------------------------
+  // MATERIALS, STOCK & PURCHASE BILLS
+  // --------------------------------------------------------------------------
+  const createMaterial = useCallback(
+    async (input: Parameters<typeof crmRepository.createMaterial>[0]) => {
+      const res = await crmRepository.createMaterial(input);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const updateMaterial = useCallback(
+    async (id: string, updates: Partial<Material>) => {
+      const res = await crmRepository.updateMaterial(id, updates);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const archiveMaterial = useCallback(
+    async (id: string) => {
+      await crmRepository.archiveMaterial(id);
+      await refreshData();
+    },
+    [refreshData]
+  );
+
+  const recordMaterialTransaction = useCallback(
+    async (input: Parameters<typeof crmRepository.recordMaterialTransaction>[0]) => {
+      const res = await crmRepository.recordMaterialTransaction(input);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const deleteMaterialTransaction = useCallback(
+    async (id: string) => {
+      await crmRepository.deleteMaterialTransaction(id);
+      await refreshData();
+    },
+    [refreshData]
+  );
+
+  const createPurchaseBill = useCallback(
+    async (input: Parameters<typeof crmRepository.createPurchaseBill>[0]) => {
+      const res = await crmRepository.createPurchaseBill(input);
+      await refreshData();
+      return res;
+    },
+    [refreshData]
+  );
+
+  const archivePurchaseBill = useCallback(
+    async (id: string) => {
+      await crmRepository.archivePurchaseBill(id);
+      await refreshData();
+    },
+    [refreshData]
+  );
+
+  // --------------------------------------------------------------------------
   // WORK UPDATES & TIMELINE
   // --------------------------------------------------------------------------
   const createWorkUpdate = useCallback(
@@ -1157,7 +1290,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Work Updates for p1 with client visibility
-    const wu1 = await crmRepository.createWorkUpdate({
+    await crmRepository.createWorkUpdate({
       project_id: p1.id,
       update_date: d(-25),
       work_stage: 'Material Preparation',
@@ -1169,7 +1302,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       is_visible_to_client: true,
     });
 
-    const wu2 = await crmRepository.createWorkUpdate({
+    await crmRepository.createWorkUpdate({
       project_id: p1.id,
       update_date: d(-8),
       work_stage: 'Work in Progress',
@@ -1190,6 +1323,102 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       progress_percentage: 72,
     });
 
+    // Seed Sample Attendance Records
+    await crmRepository.createAttendance({
+      team_member_id: tm1.id,
+      project_id: p1.id,
+      attendance_date: todayISO(),
+      status: 'Present',
+      in_time: '09:00',
+      out_time: '18:00',
+      notes: 'Site supervision & quality inspection',
+    });
+    await crmRepository.createAttendance({
+      team_member_id: tm2.id,
+      project_id: p1.id,
+      attendance_date: todayISO(),
+      status: 'Present',
+      in_time: '09:15',
+      out_time: '18:30',
+      notes: 'Master wardrobe shutter fitting',
+    });
+    await crmRepository.createAttendance({
+      team_member_id: tm3.id,
+      project_id: p1.id,
+      attendance_date: todayISO(),
+      status: 'Half Day',
+      in_time: '09:30',
+      out_time: '14:00',
+      notes: 'PU base primer coat inspection',
+    });
+
+    // Seed Sample Materials Catalogue & Stock
+    const mat1 = await crmRepository.createMaterial({
+      item_name: 'CenturyPly Club Prime 19mm BWP Plywood (8x4)',
+      category: 'Plywood & Boards',
+      unit: 'Sheet',
+      available_quantity: 28,
+      purchase_rate: 3450,
+      supplier: 'Bengal Timber & Veneer House',
+      low_stock_level: 10,
+      notes: 'IS:710 Marine Grade BWP Plywood for kitchen and wardrobes',
+    });
+
+    const mat2 = await crmRepository.createMaterial({
+      item_name: 'Merino 1mm Matte Finish Laminate (8x4)',
+      category: 'Laminates & Veneers',
+      unit: 'Sheet',
+      available_quantity: 16,
+      purchase_rate: 1680,
+      supplier: 'Bengal Timber & Veneer House',
+      low_stock_level: 8,
+      notes: 'Warm walnut and cashmere matte textures',
+    });
+
+    const mat3 = await crmRepository.createMaterial({
+      item_name: 'Hettich Sensys Soft-Close Auto Hinge (Pair)',
+      category: 'Hardware & Fittings',
+      unit: 'Set',
+      available_quantity: 6,
+      purchase_rate: 420,
+      supplier: 'Kharagpur Architectural Hardware',
+      low_stock_level: 12,
+      notes: 'nickel plated concealed soft-close hinge set',
+    });
+
+    await crmRepository.recordMaterialTransaction({
+      material_id: mat1.id,
+      project_id: p1.id,
+      transaction_type: 'usage',
+      quantity: 8,
+      unit_rate: 3450,
+      transaction_date: d(-5),
+      notes: 'Issued for Sengupta 3BHK master wardrobe carcass fabrication',
+    });
+
+    await crmRepository.createPurchaseBill({
+      invoice_reference: 'KAH-INV-2026-089',
+      supplier_name: 'Kharagpur Architectural Hardware',
+      supplier_phone: '+91 98302 88900',
+      project_id: p1.id,
+      bill_date: d(-3),
+      payment_status: 'Paid',
+      payment_method: 'UPI',
+      tax_amount: 1512,
+      record_as_expense: false,
+      notes: 'Replenishment batch of soft-close hinges for wardrobe shutters',
+      items: [
+        {
+          material_id: mat3.id,
+          item_name: mat3.item_name,
+          unit: mat3.unit,
+          quantity: 20,
+          rate: 420,
+          update_stock: true,
+        },
+      ],
+    });
+
     await refreshData();
   }, [refreshData]);
 
@@ -1206,6 +1435,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quotations,
         teamMembers,
         teamAssignments,
+        teamAttendance,
+        materials,
+        materialTransactions,
+        purchaseBills,
         workUpdates,
         projectPhotos,
         isLoading,
@@ -1248,6 +1481,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignTeamMember,
         updateTeamAssignment,
         removeTeamAssignment,
+        createAttendance,
+        updateAttendance,
+        deleteAttendance,
+        createMaterial,
+        updateMaterial,
+        archiveMaterial,
+        recordMaterialTransaction,
+        deleteMaterialTransaction,
+        createPurchaseBill,
+        archivePurchaseBill,
         createWorkUpdate,
         updateWorkUpdate,
         deleteWorkUpdate,

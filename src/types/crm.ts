@@ -89,7 +89,60 @@ export const COMMON_BOQ_UNITS = [
   'Nos.',
   'Meter',
   'Lot',
+  'Sheet',
+  'Box',
+  'Kg',
+  'Litre',
+  'Bag',
+  'Roll',
 ] as const;
+
+export const COMMON_MATERIAL_UNITS = [
+  'Piece',
+  'Sheet',
+  'Sq. ft.',
+  'Running ft.',
+  'Box',
+  'Set',
+  'Nos.',
+  'Kg',
+  'Litre',
+  'Bag',
+  'Roll',
+  'Meter',
+  'Lot',
+] as const;
+
+export const MATERIAL_CATEGORIES = [
+  'Plywood & Boards',
+  'Laminates & Veneers',
+  'Hardware & Fittings',
+  'Electrical & Lighting',
+  'Paint & Polish',
+  'Civil & Adhesive',
+  'Glass & Mirror',
+  'Plumbing & Sanitary',
+  'Fabrics & Soft Furnishing',
+  'Other',
+] as const;
+
+export type AttendanceStatus = 'Present' | 'Half Day' | 'Absent';
+
+export const ATTENDANCE_STATUSES: AttendanceStatus[] = [
+  'Present',
+  'Half Day',
+  'Absent',
+];
+
+export type MaterialTransactionType = 'purchase' | 'usage' | 'adjustment';
+
+export type PurchaseBillPaymentStatus = 'Paid' | 'Pending' | 'Partial';
+
+export const PURCHASE_BILL_PAYMENT_STATUSES: PurchaseBillPaymentStatus[] = [
+  'Paid',
+  'Pending',
+  'Partial',
+];
 
 export type TeamMemberRole =
   | 'Supervisor'
@@ -308,6 +361,7 @@ export const DEFAULT_QUOTATION_PDF_SECTIONS: QuotationPDFSections = {
 export interface QuotationItem {
   id: string;
   quotation_id: string;
+  material_id?: string | null;
   item_name: string;
   description?: string;
   quantity: number;
@@ -365,6 +419,88 @@ export interface ProjectTeamAssignment {
   notes?: string;
   member?: TeamMember;
   created_at: string;
+}
+
+export interface TeamAttendance {
+  id: string;
+  team_member_id: string;
+  project_id: string;
+  attendance_date: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+  in_time?: string | null; // HH:mm
+  out_time?: string | null; // HH:mm
+  working_hours: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Material {
+  id: string;
+  material_code: string;
+  item_name: string;
+  category: string;
+  unit: string;
+  available_quantity: number;
+  purchase_rate: number;
+  supplier?: string;
+  low_stock_level: number;
+  notes?: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialTransaction {
+  id: string;
+  material_id: string;
+  project_id?: string | null;
+  purchase_bill_id?: string | null;
+  transaction_type: MaterialTransactionType;
+  quantity: number;
+  unit_rate: number;
+  total_amount: number;
+  supplier?: string;
+  transaction_date: string; // YYYY-MM-DD
+  reference_number?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseBillItem {
+  id: string;
+  purchase_bill_id: string;
+  material_id?: string | null;
+  item_name: string;
+  description?: string;
+  unit: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  update_stock: boolean;
+  sort_order: number;
+}
+
+export interface PurchaseBill {
+  id: string;
+  bill_number: string;
+  invoice_reference?: string;
+  supplier_name: string;
+  supplier_phone?: string;
+  project_id?: string | null;
+  bill_date: string; // YYYY-MM-DD
+  payment_status: PurchaseBillPaymentStatus;
+  payment_method: PaymentMethod;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  notes?: string;
+  linked_expense_id?: string | null;
+  items: PurchaseBillItem[];
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ProjectPhoto {
@@ -518,7 +654,10 @@ export interface ActivityLog {
     | 'auth'
     | 'quotation'
     | 'team'
-    | 'work_update';
+    | 'work_update'
+    | 'attendance'
+    | 'material'
+    | 'purchase_bill';
   entity_id?: string;
   action: string;
   description: string;

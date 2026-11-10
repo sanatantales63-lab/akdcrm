@@ -25,8 +25,42 @@ import {
   WorkStage,
   QuotationStatus,
   TeamMemberRole,
+  AttendanceStatus,
+  TeamAttendance,
+  Material,
+  MaterialTransaction,
+  MaterialTransactionType,
+  PurchaseBill,
+  PurchaseBillItem,
+  PurchaseBillPaymentStatus,
+  PaymentMethod,
 } from '@/types/crm';
 import { fromPaise, toPaise, safeAdd, safeSubtract, todayISO } from '@/lib/formatters';
+
+export function calculateWorkingHours(
+  inTime?: string | null,
+  outTime?: string | null,
+  status?: AttendanceStatus
+): number {
+  if (status === 'Absent') return 0;
+  if (!inTime || !outTime) return 0;
+  const inParts = inTime.trim().split(':').map(Number);
+  const outParts = outTime.trim().split(':').map(Number);
+  if (
+    inParts.length < 2 ||
+    outParts.length < 2 ||
+    Number.isNaN(inParts[0]) ||
+    Number.isNaN(inParts[1]) ||
+    Number.isNaN(outParts[0]) ||
+    Number.isNaN(outParts[1])
+  ) {
+    return 0;
+  }
+  const inMinutes = inParts[0] * 60 + inParts[1];
+  const outMinutes = outParts[0] * 60 + outParts[1];
+  if (outMinutes <= inMinutes) return 0;
+  return Math.round(((outMinutes - inMinutes) / 60) * 100) / 100;
+}
 
 const STORAGE_DB_KEY = 'akd_interior_crm_vault_v1';
 const STORAGE_AUTH_KEY = 'akd_interior_crm_owner_auth_v1';
@@ -43,6 +77,10 @@ interface LocalDatabaseState {
   quotations: Quotation[];
   team_members: TeamMember[];
   project_team_assignments: ProjectTeamAssignment[];
+  team_attendance: TeamAttendance[];
+  materials: Material[];
+  material_transactions: MaterialTransaction[];
+  purchase_bills: PurchaseBill[];
   project_work_updates: ProjectWorkUpdate[];
   project_photos: ProjectPhoto[];
   counters: {
@@ -52,6 +90,8 @@ interface LocalDatabaseState {
     payment: number;
     expense: number;
     quotation: number;
+    material: number;
+    purchase_bill: number;
   };
 }
 
@@ -192,6 +232,10 @@ function getInitialLocalDB(): LocalDatabaseState {
     quotations: [],
     team_members: [],
     project_team_assignments: [],
+    team_attendance: [],
+    materials: [],
+    material_transactions: [],
+    purchase_bills: [],
     project_work_updates: [],
     project_photos: [],
     counters: {
@@ -201,6 +245,8 @@ function getInitialLocalDB(): LocalDatabaseState {
       payment: 0,
       expense: 0,
       quotation: 0,
+      material: 0,
+      purchase_bill: 0,
     },
   };
 }
@@ -224,6 +270,14 @@ function readLocalDB(): LocalDatabaseState {
           ...q,
           items: Array.isArray(q.items)
             ? [...q.items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            : [],
+        }))
+      : [];
+    const rawPurchaseBills = Array.isArray(parsed.purchase_bills)
+      ? parsed.purchase_bills.map((b) => ({
+          ...b,
+          items: Array.isArray(b.items)
+            ? [...b.items].sort((a, c) => (a.sort_order ?? 0) - (c.sort_order ?? 0))
             : [],
         }))
       : [];
@@ -273,6 +327,12 @@ function readLocalDB(): LocalDatabaseState {
       project_team_assignments: Array.isArray(parsed.project_team_assignments)
         ? parsed.project_team_assignments
         : [],
+      team_attendance: Array.isArray(parsed.team_attendance) ? parsed.team_attendance : [],
+      materials: Array.isArray(parsed.materials) ? parsed.materials : [],
+      material_transactions: Array.isArray(parsed.material_transactions)
+        ? parsed.material_transactions
+        : [],
+      purchase_bills: rawPurchaseBills,
       project_work_updates: rawWorkUpdates,
       project_photos: Array.isArray(parsed.project_photos) ? parsed.project_photos : [],
       counters: {
@@ -282,6 +342,8 @@ function readLocalDB(): LocalDatabaseState {
         payment: parsed.counters?.payment ?? (parsed.payments?.length || 0),
         expense: parsed.counters?.expense ?? (parsed.expenses?.length || 0),
         quotation: parsed.counters?.quotation ?? (parsed.quotations?.length || 0),
+        material: parsed.counters?.material ?? (parsed.materials?.length || 0),
+        purchase_bill: parsed.counters?.purchase_bill ?? (parsed.purchase_bills?.length || 0),
       },
     };
   } catch {
@@ -309,6 +371,18 @@ function appendActivityLog(
     created_at: new Date().toISOString(),
   };
   db.activity_logs = [entry, ...db.activity_logs.slice(0, 249)];
+}
+
+function isMissingTableError(err: { message?: string; code?: string } | null): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return (
+    err.code === '42P01' ||
+    err.code === 'PGRST204' ||
+    err.code === 'PGRST205' ||
+    msg.includes('does not exist') ||
+    msg.includes('schema cache')
+  );
 }
 
 // ============================================================================
@@ -724,12 +798,17 @@ export interface CRMDataSnapshot {
   quotations: Quotation[];
   teamMembers: TeamMember[];
   teamAssignments: ProjectTeamAssignment[];
+  teamAttendance: TeamAttendance[];
+  materials: Material[];
+  materialTransactions: MaterialTransaction[];
+  purchaseBills: PurchaseBill[];
   workUpdates: ProjectWorkUpdate[];
   projectPhotos: ProjectPhoto[];
 }
 
 export const crmRepository = {
   async fetchAll(): Promise<CRMDataSnapshot> {
+    const db = readLocalDB();
     if (isSupabaseConfigured && supabase) {
       try {
         const [
@@ -745,6 +824,10 @@ export const crmRepository = {
           assignRes,
           updatesRes,
           photosRes,
+          attendanceRes,
+          materialsRes,
+          matTxRes,
+          billsRes,
         ] = await Promise.all([
           supabase.from('business_settings').select('*').limit(1).maybeSingle(),
           supabase
@@ -797,6 +880,24 @@ export const crmRepository = {
             .from('project_photos')
             .select('*')
             .order('upload_date', { ascending: false }),
+          supabase
+            .from('team_attendance')
+            .select('*')
+            .order('attendance_date', { ascending: false }),
+          supabase
+            .from('materials')
+            .select('*')
+            .eq('is_archived', false)
+            .order('item_name', { ascending: true }),
+          supabase
+            .from('material_transactions')
+            .select('*')
+            .order('transaction_date', { ascending: false }),
+          supabase
+            .from('purchase_bills')
+            .select('*, items:purchase_bill_items(*)')
+            .eq('is_archived', false)
+            .order('bill_date', { ascending: false }),
         ]);
 
         // If Supabase tables exist and responded cleanly, return live cloud data
@@ -808,6 +909,50 @@ export const crmRepository = {
             total_value: Number(p.total_value || 0),
             progress_percentage: Number(p.progress_percentage || 0),
           })) as Project[];
+
+          const remoteAttendance: TeamAttendance[] = !attendanceRes.error && attendanceRes.data
+            ? attendanceRes.data.map((a: any) => ({
+                ...a,
+                working_hours: Number(a.working_hours || 0),
+              }))
+            : db.team_attendance || [];
+
+          const remoteMaterials: Material[] = !materialsRes.error && materialsRes.data
+            ? materialsRes.data.map((m: any) => ({
+                ...m,
+                available_quantity: Number(m.available_quantity || 0),
+                purchase_rate: Number(m.purchase_rate || 0),
+                low_stock_level: Number(m.low_stock_level || 0),
+              }))
+            : (db.materials || []).filter((m) => !m.is_archived);
+
+          const remoteMatTx: MaterialTransaction[] = !matTxRes.error && matTxRes.data
+            ? matTxRes.data.map((tx: any) => ({
+                ...tx,
+                quantity: Number(tx.quantity || 0),
+                unit_rate: Number(tx.unit_rate || 0),
+                total_amount: Number(tx.total_amount || 0),
+              }))
+            : db.material_transactions || [];
+
+          const remotePurchaseBills: PurchaseBill[] = !billsRes.error && billsRes.data
+            ? billsRes.data.map((b: any) => ({
+                ...b,
+                subtotal: Number(b.subtotal || 0),
+                tax_amount: Number(b.tax_amount || 0),
+                total_amount: Number(b.total_amount || 0),
+                items: (b.items || [])
+                  .map((it: any) => ({
+                    ...it,
+                    quantity: Number(it.quantity || 1),
+                    rate: Number(it.rate || 0),
+                    amount: Number(it.amount || 0),
+                    update_stock: Boolean(it.update_stock),
+                    sort_order: Number(it.sort_order ?? 0),
+                  }))
+                  .sort((a: any, c: any) => a.sort_order - c.sort_order),
+              }))
+            : (db.purchase_bills || []).filter((b) => !b.is_archived);
 
           return {
             settings: settingsRes.data
@@ -858,6 +1003,7 @@ export const crmRepository = {
               items: (q.items || [])
                 .map((it: any) => ({
                   ...it,
+                  material_id: it.material_id || null,
                   quantity: Number(it.quantity || 1),
                   rate: Number(it.rate || 0),
                   amount: Number(it.amount || 0),
@@ -870,6 +1016,10 @@ export const crmRepository = {
               ...a,
               member: a.member || teamMembersList.find((m) => m.id === a.team_member_id),
             })),
+            teamAttendance: remoteAttendance,
+            materials: remoteMaterials,
+            materialTransactions: remoteMatTx,
+            purchaseBills: remotePurchaseBills,
             workUpdates: workUpdatesList,
             projectPhotos: (photosRes.data || []) as ProjectPhoto[],
           };
@@ -879,7 +1029,6 @@ export const crmRepository = {
       }
     }
 
-    const db = readLocalDB();
     const teamMembersList = db.team_members || [];
     const photosList = db.project_photos || [];
     const assignmentsWithMembers = (db.project_team_assignments || []).map((a) => ({
@@ -902,6 +1051,14 @@ export const crmRepository = {
       quotations: (db.quotations || []).filter((q) => !q.is_archived),
       teamMembers: teamMembersList,
       teamAssignments: assignmentsWithMembers,
+      teamAttendance: [...(db.team_attendance || [])].sort((a, b) =>
+        (b.attendance_date || '').localeCompare(a.attendance_date || '')
+      ),
+      materials: (db.materials || []).filter((m) => !m.is_archived),
+      materialTransactions: [...(db.material_transactions || [])].sort((a, b) =>
+        (b.transaction_date || '').localeCompare(a.transaction_date || '')
+      ),
+      purchaseBills: (db.purchase_bills || []).filter((b) => !b.is_archived),
       workUpdates: updatesWithPhotos,
       projectPhotos: photosList,
     };
@@ -2000,6 +2157,10 @@ export const crmRepository = {
       quotations: [],
       team_members: [],
       project_team_assignments: [],
+      team_attendance: [],
+      materials: [],
+      material_transactions: [],
+      purchase_bills: [],
       project_work_updates: [],
       project_photos: [],
       counters: {
@@ -2009,6 +2170,8 @@ export const crmRepository = {
         payment: 0,
         expense: 0,
         quotation: 0,
+        material: 0,
+        purchase_bill: 0,
       },
     };
     appendActivityLog(
@@ -2037,6 +2200,7 @@ export const crmRepository = {
     tax_rate?: number;
     pdf_sections?: QuotationPDFSections;
     items: Array<{
+      material_id?: string | null;
       item_name: string;
       description?: string;
       quantity: number;
@@ -2070,6 +2234,7 @@ export const crmRepository = {
         return {
           id: generateUUID(),
           quotation_id: quoteId,
+          material_id: it.material_id || null,
           item_name: it.item_name.trim(),
           description: it.description?.trim() || '',
           quantity: qty,
@@ -2154,21 +2319,36 @@ export const crmRepository = {
       }
 
       if (items.length > 0) {
-        const { error: itemsErr } = await supabase.from('quotation_items').insert(
-          items.map((it) => ({
-            id: it.id,
-            quotation_id: it.quotation_id,
-            item_name: it.item_name,
-            description: it.description || null,
-            quantity: it.quantity,
-            unit: it.unit,
-            rate: it.rate,
-            amount: it.amount,
-            sort_order: it.sort_order,
-          }))
-        );
-        if (itemsErr) {
-          throw new Error(`Database error saving quotation items: ${itemsErr.message}`);
+        const extItemsPayload = items.map((it) => ({
+          id: it.id,
+          quotation_id: it.quotation_id,
+          material_id: it.material_id || null,
+          item_name: it.item_name,
+          description: it.description || null,
+          quantity: it.quantity,
+          unit: it.unit,
+          rate: it.rate,
+          amount: it.amount,
+          sort_order: it.sort_order,
+        }));
+        const { error: extItemsErr } = await supabase.from('quotation_items').insert(extItemsPayload);
+        if (extItemsErr) {
+          const { error: itemsErr } = await supabase.from('quotation_items').insert(
+            items.map((it) => ({
+              id: it.id,
+              quotation_id: it.quotation_id,
+              item_name: it.item_name,
+              description: it.description || null,
+              quantity: it.quantity,
+              unit: it.unit,
+              rate: it.rate,
+              amount: it.amount,
+              sort_order: it.sort_order,
+            }))
+          );
+          if (itemsErr) {
+            throw new Error(`Database error saving quotation items: ${itemsErr.message}`);
+          }
         }
       }
     }
@@ -2211,6 +2391,7 @@ export const crmRepository = {
           return {
             id: generateUUID(),
             quotation_id: id,
+            material_id: it.material_id || null,
             item_name: it.item_name.trim(),
             description: it.description?.trim() || '',
             quantity: qty,
@@ -2296,21 +2477,36 @@ export const crmRepository = {
           throw new Error(`Database error replacing quotation items: ${delErr.message}`);
         }
         if (items.length > 0) {
-          const { error: itemsErr } = await supabase.from('quotation_items').insert(
-            items.map((it) => ({
-              id: it.id,
-              quotation_id: it.quotation_id,
-              item_name: it.item_name,
-              description: it.description || null,
-              quantity: it.quantity,
-              unit: it.unit,
-              rate: it.rate,
-              amount: it.amount,
-              sort_order: it.sort_order,
-            }))
-          );
-          if (itemsErr) {
-            throw new Error(`Database error updating quotation items: ${itemsErr.message}`);
+          const extItemsPayload = items.map((it) => ({
+            id: it.id,
+            quotation_id: it.quotation_id,
+            material_id: it.material_id || null,
+            item_name: it.item_name,
+            description: it.description || null,
+            quantity: it.quantity,
+            unit: it.unit,
+            rate: it.rate,
+            amount: it.amount,
+            sort_order: it.sort_order,
+          }));
+          const { error: extItemsErr } = await supabase.from('quotation_items').insert(extItemsPayload);
+          if (extItemsErr) {
+            const { error: itemsErr } = await supabase.from('quotation_items').insert(
+              items.map((it) => ({
+                id: it.id,
+                quotation_id: it.quotation_id,
+                item_name: it.item_name,
+                description: it.description || null,
+                quantity: it.quantity,
+                unit: it.unit,
+                rate: it.rate,
+                amount: it.amount,
+                sort_order: it.sort_order,
+              }))
+            );
+            if (itemsErr) {
+              throw new Error(`Database error updating quotation items: ${itemsErr.message}`);
+            }
           }
         }
       }
@@ -2607,6 +2803,8 @@ export const crmRepository = {
     db.team_members = db.team_members.filter((m) => m.id !== id);
     if (!db.project_team_assignments) db.project_team_assignments = [];
     db.project_team_assignments = db.project_team_assignments.filter((a) => a.team_member_id !== id);
+    if (!db.team_attendance) db.team_attendance = [];
+    db.team_attendance = db.team_attendance.filter((a) => a.team_member_id !== id);
 
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.from('team_members').delete().eq('id', id);
@@ -2719,6 +2917,967 @@ export const crmRepository = {
         .eq('id', assignmentId);
       if (error) throw new Error(`Database error removing team assignment: ${error.message}`);
     }
+    writeLocalDB(db);
+  },
+
+  // --------------------------------------------------------------------------
+  // PROJECT-WISE TEAM ATTENDANCE
+  // --------------------------------------------------------------------------
+  async createAttendance(input: {
+    team_member_id: string;
+    project_id: string;
+    attendance_date: string;
+    status: AttendanceStatus;
+    in_time?: string | null;
+    out_time?: string | null;
+    notes?: string;
+  }): Promise<TeamAttendance> {
+    const db = readLocalDB();
+    if (!db.team_attendance) db.team_attendance = [];
+
+    const member = (db.team_members || []).find((m) => m.id === input.team_member_id);
+    if (!member) {
+      throw new Error('Please select a valid team member.');
+    }
+    const project = (db.projects || []).find(
+      (p) => p.id === input.project_id && !p.is_archived
+    );
+    if (!project) {
+      throw new Error('Please select a valid active project/site.');
+    }
+    const cleanDate = input.attendance_date || todayISO();
+
+    const duplicate = db.team_attendance.find(
+      (a) =>
+        a.team_member_id === input.team_member_id &&
+        a.project_id === input.project_id &&
+        a.attendance_date === cleanDate
+    );
+    if (duplicate) {
+      throw new Error(
+        `Attendance is already recorded for ${member.full_name} on "${project.project_name}" for ${cleanDate}. Duplicate attendance for the same member, project, and date is not allowed.`
+      );
+    }
+
+    const cleanInTime =
+      input.status === 'Absent' ? null : input.in_time?.trim() || null;
+    const cleanOutTime =
+      input.status === 'Absent' ? null : input.out_time?.trim() || null;
+
+    if (input.status !== 'Absent' && cleanInTime && cleanOutTime) {
+      const inParts = cleanInTime.split(':').map(Number);
+      const outParts = cleanOutTime.split(':').map(Number);
+      const inMins = (inParts[0] || 0) * 60 + (inParts[1] || 0);
+      const outMins = (outParts[0] || 0) * 60 + (outParts[1] || 0);
+      if (outMins <= inMins) {
+        throw new Error('OUT time must be later than IN time.');
+      }
+    }
+
+    const working_hours = calculateWorkingHours(cleanInTime, cleanOutTime, input.status);
+    const now = new Date().toISOString();
+
+    const record: TeamAttendance = {
+      id: generateUUID(),
+      team_member_id: input.team_member_id,
+      project_id: input.project_id,
+      attendance_date: cleanDate,
+      status: input.status,
+      in_time: cleanInTime,
+      out_time: cleanOutTime,
+      working_hours,
+      notes: input.notes?.trim() || '',
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('team_attendance').insert({
+        id: record.id,
+        team_member_id: record.team_member_id,
+        project_id: record.project_id,
+        attendance_date: record.attendance_date,
+        status: record.status,
+        in_time: record.in_time,
+        out_time: record.out_time,
+        working_hours: record.working_hours,
+        notes: record.notes || null,
+      });
+      if (error && !isMissingTableError(error)) {
+        if (error.code === '23505') {
+          throw new Error(
+            `Attendance is already recorded for ${member.full_name} on "${project.project_name}" for ${cleanDate}.`
+          );
+        }
+        throw new Error(`Database error recording attendance: ${error.message}`);
+      }
+    }
+
+    db.team_attendance.unshift(record);
+    appendActivityLog(
+      db,
+      'attendance',
+      'Attendance Marked',
+      `Marked ${member.full_name} as ${record.status}${
+        record.working_hours > 0 ? ` (${record.working_hours} hrs)` : ''
+      } at ${project.project_name} on ${record.attendance_date}`,
+      record.id
+    );
+    writeLocalDB(db);
+    return record;
+  },
+
+  async updateAttendance(
+    id: string,
+    updates: Partial<Omit<TeamAttendance, 'id' | 'created_at' | 'updated_at'>>
+  ): Promise<TeamAttendance> {
+    const db = readLocalDB();
+    if (!db.team_attendance) db.team_attendance = [];
+    const idx = db.team_attendance.findIndex((a) => a.id === id);
+    if (idx === -1) throw new Error('Attendance record not found.');
+
+    const existing = db.team_attendance[idx];
+    const nextMemberId = updates.team_member_id || existing.team_member_id;
+    const nextProjectId = updates.project_id || existing.project_id;
+    const nextDate = updates.attendance_date || existing.attendance_date;
+    const nextStatus = updates.status || existing.status;
+
+    const duplicate = db.team_attendance.find(
+      (a) =>
+        a.id !== id &&
+        a.team_member_id === nextMemberId &&
+        a.project_id === nextProjectId &&
+        a.attendance_date === nextDate
+    );
+    if (duplicate) {
+      const member = (db.team_members || []).find((m) => m.id === nextMemberId);
+      const project = (db.projects || []).find((p) => p.id === nextProjectId);
+      throw new Error(
+        `Attendance is already recorded for ${member?.full_name || 'this member'} on "${
+          project?.project_name || 'this project'
+        }" for ${nextDate}.`
+      );
+    }
+
+    const rawInTime =
+      updates.in_time !== undefined ? updates.in_time : existing.in_time;
+    const rawOutTime =
+      updates.out_time !== undefined ? updates.out_time : existing.out_time;
+
+    const cleanInTime = nextStatus === 'Absent' ? null : rawInTime?.trim() || null;
+    const cleanOutTime = nextStatus === 'Absent' ? null : rawOutTime?.trim() || null;
+
+    if (nextStatus !== 'Absent' && cleanInTime && cleanOutTime) {
+      const inParts = cleanInTime.split(':').map(Number);
+      const outParts = cleanOutTime.split(':').map(Number);
+      const inMins = (inParts[0] || 0) * 60 + (inParts[1] || 0);
+      const outMins = (outParts[0] || 0) * 60 + (outParts[1] || 0);
+      if (outMins <= inMins) {
+        throw new Error('OUT time must be later than IN time.');
+      }
+    }
+
+    const working_hours = calculateWorkingHours(cleanInTime, cleanOutTime, nextStatus);
+    const now = new Date().toISOString();
+
+    const updated: TeamAttendance = {
+      ...existing,
+      ...updates,
+      id,
+      team_member_id: nextMemberId,
+      project_id: nextProjectId,
+      attendance_date: nextDate,
+      status: nextStatus,
+      in_time: cleanInTime,
+      out_time: cleanOutTime,
+      working_hours,
+      notes: updates.notes !== undefined ? updates.notes.trim() : existing.notes,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('team_attendance')
+        .update({
+          team_member_id: updated.team_member_id,
+          project_id: updated.project_id,
+          attendance_date: updated.attendance_date,
+          status: updated.status,
+          in_time: updated.in_time,
+          out_time: updated.out_time,
+          working_hours: updated.working_hours,
+          notes: updated.notes || null,
+        })
+        .eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        if (error.code === '23505') {
+          throw new Error('Duplicate attendance entry for the same member, project, and date.');
+        }
+        throw new Error(`Database error updating attendance: ${error.message}`);
+      }
+    }
+
+    db.team_attendance[idx] = updated;
+    writeLocalDB(db);
+    return updated;
+  },
+
+  async deleteAttendance(id: string): Promise<void> {
+    const db = readLocalDB();
+    if (!db.team_attendance) db.team_attendance = [];
+    db.team_attendance = db.team_attendance.filter((a) => a.id !== id);
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('team_attendance').delete().eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error deleting attendance: ${error.message}`);
+      }
+    }
+    writeLocalDB(db);
+  },
+
+  // --------------------------------------------------------------------------
+  // INTERIOR MATERIALS CATALOGUE & STOCK MANAGEMENT
+  // --------------------------------------------------------------------------
+  async createMaterial(input: {
+    item_name: string;
+    category?: string;
+    unit: string;
+    available_quantity?: number;
+    purchase_rate: number;
+    supplier?: string;
+    low_stock_level?: number;
+    notes?: string;
+  }): Promise<Material> {
+    const db = readLocalDB();
+    if (!db.materials) db.materials = [];
+    if (!db.material_transactions) db.material_transactions = [];
+
+    const cleanName = input.item_name.trim();
+    if (!cleanName) throw new Error('Material item name is required.');
+
+    const cleanQty = Math.max(0, Number(Number(input.available_quantity || 0).toFixed(2)));
+    const cleanRate = Math.max(0, fromPaise(toPaise(Number(input.purchase_rate || 0))));
+    const cleanLowStock = Math.max(0, Number(Number(input.low_stock_level ?? 5).toFixed(2)));
+
+    db.counters.material = (db.counters.material || 0) + 1;
+    const material_code = `AKD-MAT-${String(db.counters.material).padStart(3, '0')}`;
+    const now = new Date().toISOString();
+
+    const newMaterial: Material = {
+      id: generateUUID(),
+      material_code,
+      item_name: cleanName,
+      category: input.category?.trim() || 'Plywood & Boards',
+      unit: input.unit?.trim() || 'Piece',
+      available_quantity: cleanQty,
+      purchase_rate: cleanRate,
+      supplier: input.supplier?.trim() || '',
+      low_stock_level: cleanLowStock,
+      notes: input.notes?.trim() || '',
+      is_archived: false,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('materials').insert({
+        id: newMaterial.id,
+        material_code: newMaterial.material_code,
+        item_name: newMaterial.item_name,
+        category: newMaterial.category,
+        unit: newMaterial.unit,
+        available_quantity: newMaterial.available_quantity,
+        purchase_rate: newMaterial.purchase_rate,
+        supplier: newMaterial.supplier || null,
+        low_stock_level: newMaterial.low_stock_level,
+        notes: newMaterial.notes || null,
+        is_archived: false,
+      });
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error creating material: ${error.message}`);
+      }
+    }
+
+    db.materials.unshift(newMaterial);
+    appendActivityLog(
+      db,
+      'material',
+      'Material Added',
+      `Added "${newMaterial.item_name}" (${newMaterial.available_quantity} ${newMaterial.unit} @ ₹${newMaterial.purchase_rate.toLocaleString('en-IN')})`,
+      newMaterial.id
+    );
+    writeLocalDB(db);
+    return newMaterial;
+  },
+
+  async updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
+    const db = readLocalDB();
+    if (!db.materials) db.materials = [];
+    const idx = db.materials.findIndex((m) => m.id === id);
+    if (idx === -1) throw new Error('Material item not found.');
+
+    const existing = db.materials[idx];
+    const cleanQty =
+      updates.available_quantity !== undefined
+        ? Math.max(0, Number(Number(updates.available_quantity).toFixed(2)))
+        : existing.available_quantity;
+    const cleanRate =
+      updates.purchase_rate !== undefined
+        ? Math.max(0, fromPaise(toPaise(Number(updates.purchase_rate))))
+        : existing.purchase_rate;
+    const cleanLowStock =
+      updates.low_stock_level !== undefined
+        ? Math.max(0, Number(Number(updates.low_stock_level).toFixed(2)))
+        : existing.low_stock_level;
+
+    const updated: Material = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      material_code: existing.material_code,
+      item_name: updates.item_name !== undefined ? updates.item_name.trim() : existing.item_name,
+      category: updates.category !== undefined ? updates.category.trim() : existing.category,
+      unit: updates.unit !== undefined ? updates.unit.trim() : existing.unit,
+      available_quantity: cleanQty,
+      purchase_rate: cleanRate,
+      supplier: updates.supplier !== undefined ? updates.supplier.trim() : existing.supplier,
+      low_stock_level: cleanLowStock,
+      notes: updates.notes !== undefined ? updates.notes.trim() : existing.notes,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!updated.item_name) throw new Error('Material item name is required.');
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('materials')
+        .update({
+          item_name: updated.item_name,
+          category: updated.category,
+          unit: updated.unit,
+          available_quantity: updated.available_quantity,
+          purchase_rate: updated.purchase_rate,
+          supplier: updated.supplier || null,
+          low_stock_level: updated.low_stock_level,
+          notes: updated.notes || null,
+        })
+        .eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error updating material: ${error.message}`);
+      }
+    }
+
+    db.materials[idx] = updated;
+    appendActivityLog(
+      db,
+      'material',
+      'Material Updated',
+      `Updated "${updated.item_name}" (Stock: ${updated.available_quantity} ${updated.unit})`,
+      updated.id
+    );
+    writeLocalDB(db);
+    return updated;
+  },
+
+  async archiveMaterial(id: string): Promise<void> {
+    const db = readLocalDB();
+    if (!db.materials) db.materials = [];
+    const idx = db.materials.findIndex((m) => m.id === id);
+    if (idx === -1) throw new Error('Material item not found.');
+
+    const target = db.materials[idx];
+    target.is_archived = true;
+    target.updated_at = new Date().toISOString();
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('materials').update({ is_archived: true }).eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error archiving material: ${error.message}`);
+      }
+    }
+
+    appendActivityLog(
+      db,
+      'material',
+      'Material Archived',
+      `Removed "${target.item_name}" (${target.material_code}) from active catalogue`,
+      id
+    );
+    writeLocalDB(db);
+  },
+
+  async recordMaterialTransaction(input: {
+    material_id: string;
+    project_id?: string | null;
+    purchase_bill_id?: string | null;
+    transaction_type: MaterialTransactionType;
+    quantity: number;
+    unit_rate?: number;
+    supplier?: string;
+    transaction_date?: string;
+    reference_number?: string;
+    notes?: string;
+  }): Promise<{ transaction: MaterialTransaction; material: Material }> {
+    const db = readLocalDB();
+    if (!db.materials) db.materials = [];
+    if (!db.material_transactions) db.material_transactions = [];
+
+    const matIdx = db.materials.findIndex((m) => m.id === input.material_id && !m.is_archived);
+    if (matIdx === -1) throw new Error('Selected material was not found in the catalogue.');
+
+    const material = db.materials[matIdx];
+    const cleanQty = Number(Number(input.quantity || 0).toFixed(2));
+    if (cleanQty <= 0) {
+      throw new Error('Quantity must be greater than zero.');
+    }
+
+    if (input.transaction_type === 'usage' && !input.project_id) {
+      throw new Error('Please select a project/site to record material usage against.');
+    }
+
+    let nextAvailableQty = material.available_quantity;
+    if (input.transaction_type === 'usage') {
+      if (cleanQty > material.available_quantity) {
+        throw new Error(
+          `Insufficient stock for "${material.item_name}". Available: ${material.available_quantity} ${material.unit}, Requested: ${cleanQty} ${material.unit}.`
+        );
+      }
+      nextAvailableQty = Math.max(0, Number((material.available_quantity - cleanQty).toFixed(2)));
+    } else if (input.transaction_type === 'purchase') {
+      nextAvailableQty = Number((material.available_quantity + cleanQty).toFixed(2));
+    } else if (input.transaction_type === 'adjustment') {
+      nextAvailableQty = Number((material.available_quantity + cleanQty).toFixed(2));
+    }
+
+    const cleanRate =
+      input.unit_rate !== undefined
+        ? Math.max(0, fromPaise(toPaise(Number(input.unit_rate))))
+        : material.purchase_rate;
+    const totalAmount = Math.max(0, fromPaise(toPaise(cleanQty * cleanRate)));
+    const now = new Date().toISOString();
+
+    const updatedMaterial: Material = {
+      ...material,
+      available_quantity: nextAvailableQty,
+      purchase_rate:
+        input.transaction_type === 'purchase' && cleanRate > 0
+          ? cleanRate
+          : material.purchase_rate,
+      supplier:
+        input.transaction_type === 'purchase' && input.supplier?.trim()
+          ? input.supplier.trim()
+          : material.supplier,
+      updated_at: now,
+    };
+
+    const newTx: MaterialTransaction = {
+      id: generateUUID(),
+      material_id: material.id,
+      project_id: input.project_id || null,
+      purchase_bill_id: input.purchase_bill_id || null,
+      transaction_type: input.transaction_type,
+      quantity: cleanQty,
+      unit_rate: cleanRate,
+      total_amount: totalAmount,
+      supplier: input.supplier?.trim() || material.supplier || '',
+      transaction_date: input.transaction_date || todayISO(),
+      reference_number: input.reference_number?.trim() || '',
+      notes: input.notes?.trim() || '',
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error: matErr } = await supabase
+        .from('materials')
+        .update({
+          available_quantity: updatedMaterial.available_quantity,
+          purchase_rate: updatedMaterial.purchase_rate,
+          supplier: updatedMaterial.supplier || null,
+        })
+        .eq('id', material.id);
+      if (matErr && !isMissingTableError(matErr)) {
+        throw new Error(`Database error updating stock quantity: ${matErr.message}`);
+      }
+
+      const { error: txErr } = await supabase.from('material_transactions').insert({
+        id: newTx.id,
+        material_id: newTx.material_id,
+        project_id: newTx.project_id,
+        purchase_bill_id: newTx.purchase_bill_id,
+        transaction_type: newTx.transaction_type,
+        quantity: newTx.quantity,
+        unit_rate: newTx.unit_rate,
+        total_amount: newTx.total_amount,
+        supplier: newTx.supplier || null,
+        transaction_date: newTx.transaction_date,
+        reference_number: newTx.reference_number || null,
+        notes: newTx.notes || null,
+      });
+      if (txErr && !isMissingTableError(txErr)) {
+        throw new Error(`Database error recording stock transaction: ${txErr.message}`);
+      }
+    }
+
+    db.materials[matIdx] = updatedMaterial;
+    db.material_transactions.unshift(newTx);
+
+    const projectObj = input.project_id
+      ? (db.projects || []).find((p) => p.id === input.project_id)
+      : undefined;
+    appendActivityLog(
+      db,
+      'material',
+      input.transaction_type === 'usage' ? 'Material Used on Site' : 'Stock Purchased',
+      input.transaction_type === 'usage'
+        ? `Used ${cleanQty} ${material.unit} of "${material.item_name}" on ${
+            projectObj?.project_name || 'Project'
+          } (Remaining: ${updatedMaterial.available_quantity} ${material.unit})`
+        : `Added ${cleanQty} ${material.unit} of "${material.item_name}" to stock (Available: ${updatedMaterial.available_quantity} ${material.unit})`,
+      material.id
+    );
+    writeLocalDB(db);
+    return { transaction: newTx, material: updatedMaterial };
+  },
+
+  async deleteMaterialTransaction(id: string): Promise<void> {
+    const db = readLocalDB();
+    if (!db.material_transactions) db.material_transactions = [];
+    if (!db.materials) db.materials = [];
+
+    const tx = db.material_transactions.find((t) => t.id === id);
+    if (!tx) throw new Error('Stock transaction not found.');
+
+    const matIdx = db.materials.findIndex((m) => m.id === tx.material_id);
+    if (matIdx !== -1) {
+      const mat = db.materials[matIdx];
+      let reversedQty = mat.available_quantity;
+      if (tx.transaction_type === 'usage') {
+        reversedQty = Number((mat.available_quantity + tx.quantity).toFixed(2));
+      } else {
+        reversedQty = Math.max(0, Number((mat.available_quantity - tx.quantity).toFixed(2)));
+      }
+      db.materials[matIdx] = {
+        ...mat,
+        available_quantity: reversedQty,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('materials')
+          .update({ available_quantity: reversedQty })
+          .eq('id', mat.id);
+      }
+    }
+
+    db.material_transactions = db.material_transactions.filter((t) => t.id !== id);
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('material_transactions').delete().eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error deleting stock transaction: ${error.message}`);
+      }
+    }
+    writeLocalDB(db);
+  },
+
+  // --------------------------------------------------------------------------
+  // PURCHASE BILLS & STOCK PURCHASES
+  // --------------------------------------------------------------------------
+  async createPurchaseBill(input: {
+    invoice_reference?: string;
+    supplier_name: string;
+    supplier_phone?: string;
+    project_id?: string | null;
+    bill_date?: string;
+    payment_status?: PurchaseBillPaymentStatus;
+    payment_method?: PaymentMethod;
+    tax_amount?: number;
+    notes?: string;
+    record_as_expense?: boolean;
+    items: Array<{
+      material_id?: string | null;
+      item_name: string;
+      description?: string;
+      unit: string;
+      quantity: number;
+      rate: number;
+      update_stock?: boolean;
+      save_to_catalogue?: boolean;
+      category?: string;
+      low_stock_level?: number;
+      sort_order?: number;
+    }>;
+  }): Promise<PurchaseBill> {
+    const db = readLocalDB();
+    if (!db.purchase_bills) db.purchase_bills = [];
+    if (!db.materials) db.materials = [];
+    if (!db.material_transactions) db.material_transactions = [];
+    if (!db.expenses) db.expenses = [];
+
+    const cleanSupplier = input.supplier_name.trim();
+    if (!cleanSupplier) {
+      throw new Error('Supplier name is required.');
+    }
+    if (!input.items || input.items.length === 0) {
+      throw new Error('Please add at least one item to the purchase bill.');
+    }
+
+    db.counters.purchase_bill = (db.counters.purchase_bill || 0) + 1;
+    const bill_number = `AKD-PB-${String(db.counters.purchase_bill).padStart(3, '0')}`;
+    const billId = generateUUID();
+    const now = new Date().toISOString();
+    const cleanBillDate = input.bill_date || todayISO();
+
+    const processedItems: PurchaseBillItem[] = [];
+    let subtotalPaise = 0;
+
+    for (let idx = 0; idx < input.items.length; idx++) {
+      const rawItem = input.items[idx];
+      const cleanItemName = rawItem.item_name.trim();
+      if (!cleanItemName) {
+        throw new Error(`Line item #${idx + 1} must have an item name.`);
+      }
+      const qty = Math.max(0.01, Number(Number(rawItem.quantity || 1).toFixed(2)));
+      const rate = Math.max(0, fromPaise(toPaise(Number(rawItem.rate || 0))));
+      const amount = Math.max(0, fromPaise(toPaise(qty * rate)));
+      subtotalPaise += toPaise(amount);
+
+      let resolvedMaterialId = rawItem.material_id || null;
+
+      // If custom/new item and owner checked "Save to Materials Catalogue", create catalogue item first (initial 0 stock before purchase addition)
+      if (!resolvedMaterialId && rawItem.save_to_catalogue) {
+        db.counters.material = (db.counters.material || 0) + 1;
+        const material_code = `AKD-MAT-${String(db.counters.material).padStart(3, '0')}`;
+        const newCatalogueMat: Material = {
+          id: generateUUID(),
+          material_code,
+          item_name: cleanItemName,
+          category: rawItem.category?.trim() || 'Plywood & Boards',
+          unit: rawItem.unit?.trim() || 'Piece',
+          available_quantity: 0,
+          purchase_rate: rate,
+          supplier: cleanSupplier,
+          low_stock_level: Math.max(0, Number(rawItem.low_stock_level ?? 5)),
+          notes: rawItem.description?.trim() || '',
+          is_archived: false,
+          created_at: now,
+          updated_at: now,
+        };
+        db.materials.unshift(newCatalogueMat);
+        resolvedMaterialId = newCatalogueMat.id;
+
+        if (isSupabaseConfigured && supabase) {
+          const { error: catErr } = await supabase.from('materials').insert({
+            id: newCatalogueMat.id,
+            material_code: newCatalogueMat.material_code,
+            item_name: newCatalogueMat.item_name,
+            category: newCatalogueMat.category,
+            unit: newCatalogueMat.unit,
+            available_quantity: 0,
+            purchase_rate: newCatalogueMat.purchase_rate,
+            supplier: newCatalogueMat.supplier || null,
+            low_stock_level: newCatalogueMat.low_stock_level,
+            notes: newCatalogueMat.notes || null,
+            is_archived: false,
+          });
+          if (catErr && !isMissingTableError(catErr)) {
+            throw new Error(`Database error creating catalogue material: ${catErr.message}`);
+          }
+        }
+      }
+
+      const shouldUpdateStock = Boolean(
+        resolvedMaterialId && (rawItem.update_stock !== undefined ? rawItem.update_stock : true)
+      );
+
+      processedItems.push({
+        id: generateUUID(),
+        purchase_bill_id: billId,
+        material_id: resolvedMaterialId,
+        item_name: cleanItemName,
+        description: rawItem.description?.trim() || '',
+        unit: rawItem.unit?.trim() || 'Piece',
+        quantity: qty,
+        rate,
+        amount,
+        update_stock: shouldUpdateStock,
+        sort_order: rawItem.sort_order !== undefined ? rawItem.sort_order : idx,
+      });
+    }
+
+    const subtotal = fromPaise(subtotalPaise);
+    const tax_amount = Math.max(0, fromPaise(toPaise(Number(input.tax_amount || 0))));
+    const total_amount = safeAdd(subtotal, tax_amount);
+    const payment_status: PurchaseBillPaymentStatus = input.payment_status || 'Paid';
+    const payment_method: PaymentMethod = input.payment_method || 'Bank Transfer';
+
+    let linkedExpenseId: string | null = null;
+    if (input.record_as_expense && total_amount > 0) {
+      db.counters.expense = (db.counters.expense || 0) + 1;
+      const expense_code = `AKD-EXP-${String(db.counters.expense).padStart(3, '0')}`;
+      const newExpense: Expense = {
+        id: generateUUID(),
+        expense_code,
+        title: `Purchase Bill ${bill_number} — ${cleanSupplier}`,
+        category: 'Materials',
+        project_id: input.project_id || null,
+        amount: total_amount,
+        expense_date: cleanBillDate,
+        vendor_name: cleanSupplier,
+        payment_method,
+        reference_number: input.invoice_reference?.trim() || bill_number,
+        notes:
+          input.notes?.trim() ||
+          `Items: ${processedItems.map((i) => `${i.item_name} (${i.quantity} ${i.unit})`).join(', ')}`,
+        is_archived: false,
+        created_at: now,
+        updated_at: now,
+      };
+      linkedExpenseId = newExpense.id;
+      db.expenses.unshift(newExpense);
+
+      if (isSupabaseConfigured && supabase) {
+        const { error: expErr } = await supabase.from('expenses').insert({
+          id: newExpense.id,
+          expense_code: newExpense.expense_code,
+          title: newExpense.title,
+          category: newExpense.category,
+          project_id: newExpense.project_id,
+          amount: newExpense.amount,
+          expense_date: newExpense.expense_date,
+          vendor_name: newExpense.vendor_name,
+          payment_method: newExpense.payment_method,
+          reference_number: newExpense.reference_number,
+          notes: newExpense.notes,
+          is_archived: false,
+        });
+        if (expErr) {
+          throw new Error(`Database error creating linked expense: ${expErr.message}`);
+        }
+      }
+    }
+
+    const newBill: PurchaseBill = {
+      id: billId,
+      bill_number,
+      invoice_reference: input.invoice_reference?.trim() || '',
+      supplier_name: cleanSupplier,
+      supplier_phone: input.supplier_phone?.trim() || '',
+      project_id: input.project_id || null,
+      bill_date: cleanBillDate,
+      payment_status,
+      payment_method,
+      subtotal,
+      tax_amount,
+      total_amount,
+      notes: input.notes?.trim() || '',
+      linked_expense_id: linkedExpenseId,
+      items: processedItems,
+      is_archived: false,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error: billErr } = await supabase.from('purchase_bills').insert({
+        id: newBill.id,
+        bill_number: newBill.bill_number,
+        invoice_reference: newBill.invoice_reference || null,
+        supplier_name: newBill.supplier_name,
+        supplier_phone: newBill.supplier_phone || null,
+        project_id: newBill.project_id,
+        bill_date: newBill.bill_date,
+        payment_status: newBill.payment_status,
+        payment_method: newBill.payment_method,
+        subtotal: newBill.subtotal,
+        tax_amount: newBill.tax_amount,
+        total_amount: newBill.total_amount,
+        notes: newBill.notes || null,
+        linked_expense_id: newBill.linked_expense_id,
+        is_archived: false,
+      });
+      if (billErr && !isMissingTableError(billErr)) {
+        throw new Error(`Database error saving purchase bill: ${billErr.message}`);
+      }
+
+      if (processedItems.length > 0) {
+        const { error: itemsErr } = await supabase.from('purchase_bill_items').insert(
+          processedItems.map((it) => ({
+            id: it.id,
+            purchase_bill_id: it.purchase_bill_id,
+            material_id: it.material_id,
+            item_name: it.item_name,
+            description: it.description || null,
+            unit: it.unit,
+            quantity: it.quantity,
+            rate: it.rate,
+            amount: it.amount,
+            update_stock: it.update_stock,
+            sort_order: it.sort_order,
+          }))
+        );
+        if (itemsErr && !isMissingTableError(itemsErr)) {
+          throw new Error(`Database error saving purchase bill items: ${itemsErr.message}`);
+        }
+      }
+    }
+
+    // Update stock for each item where update_stock === true and material_id is set
+    for (const item of processedItems) {
+      if (item.update_stock && item.material_id) {
+        const mIdx = db.materials.findIndex((m) => m.id === item.material_id);
+        if (mIdx !== -1) {
+          const mat = db.materials[mIdx];
+          const nextStock = Number((mat.available_quantity + item.quantity).toFixed(2));
+          const nextRate = item.rate > 0 ? item.rate : mat.purchase_rate;
+          db.materials[mIdx] = {
+            ...mat,
+            available_quantity: nextStock,
+            purchase_rate: nextRate,
+            supplier: cleanSupplier || mat.supplier,
+            updated_at: now,
+          };
+
+          const tx: MaterialTransaction = {
+            id: generateUUID(),
+            material_id: mat.id,
+            project_id: newBill.project_id,
+            purchase_bill_id: newBill.id,
+            transaction_type: 'purchase',
+            quantity: item.quantity,
+            unit_rate: item.rate,
+            total_amount: item.amount,
+            supplier: cleanSupplier,
+            transaction_date: cleanBillDate,
+            reference_number: newBill.invoice_reference || newBill.bill_number,
+            notes: `Purchase Bill ${newBill.bill_number}`,
+            created_at: now,
+            updated_at: now,
+          };
+          db.material_transactions.unshift(tx);
+
+          if (isSupabaseConfigured && supabase) {
+            await supabase
+              .from('materials')
+              .update({
+                available_quantity: nextStock,
+                purchase_rate: nextRate,
+                supplier: cleanSupplier || mat.supplier || null,
+              })
+              .eq('id', mat.id);
+
+            await supabase.from('material_transactions').insert({
+              id: tx.id,
+              material_id: tx.material_id,
+              project_id: tx.project_id,
+              purchase_bill_id: tx.purchase_bill_id,
+              transaction_type: tx.transaction_type,
+              quantity: tx.quantity,
+              unit_rate: tx.unit_rate,
+              total_amount: tx.total_amount,
+              supplier: tx.supplier,
+              transaction_date: tx.transaction_date,
+              reference_number: tx.reference_number,
+              notes: tx.notes,
+            });
+          }
+        }
+      }
+    }
+
+    db.purchase_bills.unshift(newBill);
+    appendActivityLog(
+      db,
+      'purchase_bill',
+      'Purchase Bill Recorded',
+      `Recorded purchase bill ${newBill.bill_number} from ${newBill.supplier_name} (₹${newBill.total_amount.toLocaleString('en-IN')})`,
+      newBill.id
+    );
+    writeLocalDB(db);
+    return newBill;
+  },
+
+  async archivePurchaseBill(id: string): Promise<void> {
+    const db = readLocalDB();
+    if (!db.purchase_bills) db.purchase_bills = [];
+    if (!db.materials) db.materials = [];
+    if (!db.material_transactions) db.material_transactions = [];
+
+    const idx = db.purchase_bills.findIndex((b) => b.id === id);
+    if (idx === -1) throw new Error('Purchase bill not found.');
+
+    const bill = db.purchase_bills[idx];
+    const now = new Date().toISOString();
+
+    // Reverse stock additions from this purchase bill
+    for (const item of bill.items || []) {
+      if (item.update_stock && item.material_id) {
+        const mIdx = db.materials.findIndex((m) => m.id === item.material_id);
+        if (mIdx !== -1) {
+          const mat = db.materials[mIdx];
+          const reversedQty = Math.max(
+            0,
+            Number((mat.available_quantity - item.quantity).toFixed(2))
+          );
+          db.materials[mIdx] = {
+            ...mat,
+            available_quantity: reversedQty,
+            updated_at: now,
+          };
+          if (isSupabaseConfigured && supabase) {
+            await supabase
+              .from('materials')
+              .update({ available_quantity: reversedQty })
+              .eq('id', mat.id);
+          }
+        }
+      }
+    }
+
+    db.material_transactions = db.material_transactions.filter(
+      (t) => t.purchase_bill_id !== id
+    );
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('material_transactions').delete().eq('purchase_bill_id', id);
+    }
+
+    // Archive linked expense if present
+    if (bill.linked_expense_id && db.expenses) {
+      const expIdx = db.expenses.findIndex((e) => e.id === bill.linked_expense_id);
+      if (expIdx !== -1) {
+        db.expenses[expIdx].is_archived = true;
+        db.expenses[expIdx].updated_at = now;
+      }
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('expenses')
+          .update({ is_archived: true })
+          .eq('id', bill.linked_expense_id);
+      }
+    }
+
+    bill.is_archived = true;
+    bill.updated_at = now;
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('purchase_bills')
+        .update({ is_archived: true })
+        .eq('id', id);
+      if (error && !isMissingTableError(error)) {
+        throw new Error(`Database error archiving purchase bill: ${error.message}`);
+      }
+    }
+
+    appendActivityLog(
+      db,
+      'purchase_bill',
+      'Purchase Bill Archived',
+      `Archived purchase bill ${bill.bill_number} (${bill.supplier_name})`,
+      id
+    );
     writeLocalDB(db);
   },
 

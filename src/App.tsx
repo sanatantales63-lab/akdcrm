@@ -13,6 +13,8 @@ import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
 import { EnquiriesPage } from '@/pages/EnquiriesPage';
 import { PaymentsPage } from '@/pages/PaymentsPage';
 import { ExpensesPage } from '@/pages/ExpensesPage';
+import { AttendancePage } from '@/pages/AttendancePage';
+import { MaterialsPage } from '@/pages/MaterialsPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ClientTrackingPage } from '@/pages/ClientTrackingPage';
@@ -71,6 +73,8 @@ export const App: React.FC = () => {
                 <Route path="enquiries" element={<EnquiriesPage />} />
                 <Route path="payments" element={<PaymentsPage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
+                <Route path="attendance" element={<AttendancePage />} />
+                <Route path="materials" element={<MaterialsPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

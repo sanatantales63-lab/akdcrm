@@ -1,7 +1,18 @@
 -- ==============================================================================
 -- AKD INTERIOR (ALL KIND DECOR) — PRIVATE BUSINESS MANAGEMENT CRM
--- COMPLETE MASTER SCHEMA SETUP (ONE-CLICK DEPLOYMENT)
--- Run this script in Supabase Dashboard -> SQL Editor -> Run
+-- COMPLETE MASTER SCHEMA SETUP (ONE-CLICK, IDEMPOTENT, RLS ENABLED)
+--
+-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
+-- Safe to run on a FRESH project and also on top of an existing one
+-- (it will only add what is missing and repair what is outdated).
+--
+-- Covers: clients, enquiries, projects, payments, expenses, quotations/BOQ,
+--         team, work updates & photos, ATTENDANCE, MATERIALS, MATERIAL
+--         TRANSACTIONS, PURCHASE BILLS, owner-only RLS, storage, public
+--         client tracking RPC.
+--
+-- OPTIONAL (only if you add client-side encryption in the app):
+--         run supabase/encrypted_mode.sql AFTER this script.
 -- ==============================================================================
 
 -- 1. EXTENSIONS & COMMON FUNCTIONS
@@ -44,7 +55,9 @@ AS $$
   );
 $$;
 
--- Automatically register new Supabase Auth users as active Studio Owners in profiles
+-- The FIRST Supabase Auth user becomes the active Studio Owner automatically.
+-- Any later sign-up does NOT get access (protects your data if sign-ups are open).
+-- Additional owners can be added manually (see the end of this file).
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -52,18 +65,20 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role, is_active)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'AKD Studio Principal'),
-    'owner',
-    TRUE
-  )
-  ON CONFLICT (id) DO UPDATE
-  SET email = EXCLUDED.email,
-      role = 'owner',
-      is_active = TRUE;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE role = 'owner' AND is_active = TRUE) THEN
+    INSERT INTO public.profiles (id, email, full_name, role, is_active)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.email, NEW.id::text),
+      COALESCE(NEW.raw_user_meta_data->>'full_name', 'AKD Studio Principal'),
+      'owner',
+      TRUE
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        role = 'owner',
+        is_active = TRUE;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -74,22 +89,22 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- Sync any user already created in auth.users into profiles
+-- Sync every user that ALREADY exists in auth.users (so RLS never locks you out)
 INSERT INTO public.profiles (id, email, full_name, role, is_active)
-SELECT id, email, COALESCE(raw_user_meta_data->>'full_name', 'AKD Studio Principal'), 'owner', TRUE
+SELECT id, COALESCE(email, id::text), COALESCE(raw_user_meta_data->>'full_name', 'AKD Studio Principal'), 'owner', TRUE
 FROM auth.users
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET role = 'owner', is_active = TRUE;
 
 -- 3. BUSINESS SETTINGS
 CREATE TABLE IF NOT EXISTS public.business_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  business_name TEXT NOT NULL DEFAULT 'AKD All Kind Decor (AKD Interior)',
-  authorized_signatory TEXT NOT NULL DEFAULT 'AKD All Kind Decor',
+  business_name TEXT NOT NULL DEFAULT 'ALL KIND DECOR INTERIOR',
+  authorized_signatory TEXT NOT NULL DEFAULT 'Sk Subrati Amin',
   logo_url TEXT NOT NULL DEFAULT '/logo.png',
-  phone TEXT NOT NULL DEFAULT '+91 76027 72338',
-  email TEXT NOT NULL DEFAULT 'owner@akdstudio.com',
-  address TEXT NOT NULL DEFAULT 'Lalpur, Kharagpur, West Bengal, India',
+  phone TEXT NOT NULL DEFAULT '+91 7602772338, 9332961522',
+  email TEXT NOT NULL DEFAULT 'allkindsdecorinterior@gmail.com',
+  address TEXT NOT NULL DEFAULT 'Inda North Vidyasagarpur, Kharagpur, Paschim Medinipur, West Bengal - 721305',
   website TEXT NOT NULL DEFAULT 'https://www.akdinterior.in/',
   currency TEXT NOT NULL DEFAULT 'INR',
   date_format TEXT NOT NULL DEFAULT 'dd MMM yyyy',
@@ -155,21 +170,45 @@ ALTER TABLE public.business_settings
     "showSignature": true
   }'::jsonb;
 
--- Initialize default studio business settings row if none exists
+-- The app always reads/writes ONE settings row with this fixed id.
+-- If an older random-id row exists, adopt the most recently edited one.
+UPDATE public.business_settings
+SET id = '00000000-0000-4000-8000-000000000001'
+WHERE id = (SELECT id FROM public.business_settings ORDER BY updated_at DESC LIMIT 1)
+  AND id <> '00000000-0000-4000-8000-000000000001'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.business_settings WHERE id = '00000000-0000-4000-8000-000000000001'
+  );
+
+DELETE FROM public.business_settings
+WHERE id <> '00000000-0000-4000-8000-000000000001'
+  AND EXISTS (
+    SELECT 1 FROM public.business_settings WHERE id = '00000000-0000-4000-8000-000000000001'
+  );
+
 INSERT INTO public.business_settings (
-  id, business_name, authorized_signatory, logo_url, phone, email, address, website, currency, date_format
+  id, business_name, authorized_signatory, logo_url, phone, email, address, website,
+  currency, date_format, bank_account_name, bank_name, bank_account_number,
+  bank_ifsc_code, bank_branch, default_payment_terms, default_terms_and_conditions
 )
 SELECT
-  gen_random_uuid(),
-  'AKD All Kind Decor (AKD Interior)',
-  'AKD All Kind Decor',
+  '00000000-0000-4000-8000-000000000001',
+  'ALL KIND DECOR INTERIOR',
+  'Sk Subrati Amin',
   '/logo.png',
-  '+91 76027 72338',
-  'owner@akdstudio.com',
-  'Lalpur, Kharagpur, West Bengal, India',
+  '+91 7602772338, 9332961522',
+  'allkindsdecorinterior@gmail.com',
+  'Inda North Vidyasagarpur, Kharagpur, Paschim Medinipur, West Bengal - 721305',
   'https://www.akdinterior.in/',
   'INR',
-  'dd MMM yyyy'
+  'dd MMM yyyy',
+  'Sk Subrati Amin',
+  'Canara Bank',
+  '110135860623',
+  'CNRB0004983',
+  'I floor pirbaba tower Inda OT Road',
+  E'1. 50% advance with order confirmation.\n2. 30% upon mid-execution / carpentry fabrication milestone.\n3. 20% upon completion and site handover.',
+  E'1. Material specifications and finishes are strictly as per the approved BOQ.\n2. Any additional civil, electrical, or custom carpentry changes requested during execution will be billed separately.\n3. This quotation is valid until the specified validity date.'
 WHERE NOT EXISTS (SELECT 1 FROM public.business_settings);
 
 -- 4. CLIENTS
@@ -189,7 +228,7 @@ CREATE TABLE IF NOT EXISTS public.clients (
   status TEXT NOT NULL DEFAULT 'New' CHECK (status IN ('New', 'Contacted', 'Qualified', 'Active Client', 'Completed', 'Lost')),
   date_added DATE NOT NULL DEFAULT CURRENT_DATE,
   notes TEXT,
-  client_notesLog JSONB NOT NULL DEFAULT '[]'::jsonb,
+  client_noteslog JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -263,7 +302,8 @@ ALTER TABLE public.projects
   ADD COLUMN IF NOT EXISTS current_work_stage TEXT DEFAULT 'Planning';
 
 ALTER TABLE public.enquiries
-  DROP CONSTRAINT IF EXISTS fk_enquiries_converted_project,
+  DROP CONSTRAINT IF EXISTS fk_enquiries_converted_project;
+ALTER TABLE public.enquiries
   ADD CONSTRAINT fk_enquiries_converted_project
   FOREIGN KEY (converted_project_id) REFERENCES public.projects(id) ON DELETE SET NULL;
 
@@ -345,16 +385,29 @@ CREATE INDEX IF NOT EXISTS idx_expenses_project_id ON public.expenses (project_i
 CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses (category) WHERE is_archived = FALSE;
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses (expense_date) WHERE is_archived = FALSE;
 
--- 9. ACTIVITY LOGS
+-- 9. ACTIVITY LOGS  (entity_type list includes quotation/team/attendance/material/... —
+--    the older script was missing these, which made some inserts fail)
 CREATE TABLE IF NOT EXISTS public.activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_type TEXT NOT NULL CHECK (entity_type IN ('client', 'project', 'enquiry', 'payment', 'expense', 'settings', 'auth')),
+  entity_type TEXT NOT NULL,
   entity_id UUID,
   action TEXT NOT NULL,
   description TEXT NOT NULL,
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.activity_logs
+  DROP CONSTRAINT IF EXISTS activity_logs_entity_type_check;
+
+ALTER TABLE public.activity_logs
+  ADD CONSTRAINT activity_logs_entity_type_check
+  CHECK (
+    entity_type IN (
+      'client', 'project', 'enquiry', 'payment', 'expense', 'settings', 'auth',
+      'quotation', 'team', 'work_update', 'attendance', 'material', 'purchase_bill'
+    )
+  );
 
 CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON public.activity_logs (created_at DESC);
 
@@ -468,7 +521,11 @@ DECLARE
   v_latest_progress INTEGER;
   v_latest_stage TEXT;
 BEGIN
-  v_project_id := COALESCE(NEW.project_id, OLD.project_id);
+  IF TG_OP = 'DELETE' THEN
+    v_project_id := OLD.project_id;
+  ELSE
+    v_project_id := NEW.project_id;
+  END IF;
 
   SELECT u.progress_percentage, u.work_stage
     INTO v_latest_progress, v_latest_stage
@@ -485,7 +542,10 @@ BEGIN
     WHERE id = v_project_id;
   END IF;
 
-  RETURN COALESCE(NEW, OLD);
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -512,7 +572,131 @@ CREATE TABLE IF NOT EXISTS public.project_photos (
 CREATE INDEX IF NOT EXISTS idx_project_photos_project_id ON public.project_photos (project_id);
 CREATE INDEX IF NOT EXISTS idx_project_photos_work_update ON public.project_photos (work_update_id);
 
--- 13. ATTACH UPDATED_AT TRIGGERS
+-- 13. PROJECT-WISE TEAM ATTENDANCE
+CREATE TABLE IF NOT EXISTS public.team_attendance (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  team_member_id UUID NOT NULL REFERENCES public.team_members(id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  status TEXT NOT NULL DEFAULT 'Present' CHECK (status IN ('Present', 'Absent', 'Half Day')),
+  in_time TEXT,
+  out_time TEXT,
+  working_hours NUMERIC(5, 2) NOT NULL DEFAULT 0.00 CHECK (working_hours >= 0 AND working_hours <= 24),
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_team_attendance_member_project_date UNIQUE (team_member_id, project_id, attendance_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_attendance_project_date ON public.team_attendance (project_id, attendance_date DESC);
+CREATE INDEX IF NOT EXISTS idx_team_attendance_member_date ON public.team_attendance (team_member_id, attendance_date DESC);
+CREATE INDEX IF NOT EXISTS idx_team_attendance_date ON public.team_attendance (attendance_date DESC);
+
+-- 14. MATERIALS & STOCK CATALOGUE
+CREATE TABLE IF NOT EXISTS public.materials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_code TEXT UNIQUE NOT NULL,
+  item_name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Plywood & Boards',
+  unit TEXT NOT NULL DEFAULT 'Sheet',
+  available_quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (available_quantity >= 0),
+  purchase_rate NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (purchase_rate >= 0),
+  supplier TEXT,
+  low_stock_level NUMERIC(12, 2) NOT NULL DEFAULT 5.00 CHECK (low_stock_level >= 0),
+  notes TEXT,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_materials_item_name ON public.materials (LOWER(item_name)) WHERE is_archived = FALSE;
+CREATE INDEX IF NOT EXISTS idx_materials_category ON public.materials (category) WHERE is_archived = FALSE;
+
+-- Optional link from BOQ line items to the materials catalogue (never deducts stock)
+ALTER TABLE public.quotation_items
+  ADD COLUMN IF NOT EXISTS material_id UUID REFERENCES public.materials(id) ON DELETE SET NULL;
+
+-- 15. PURCHASE BILLS & ITEMS
+--     (columns invoice_reference / subtotal / tax_amount / description are used by the
+--      app but were missing in the older scripts; bill_code is no longer required)
+CREATE TABLE IF NOT EXISTS public.purchase_bills (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bill_code TEXT UNIQUE DEFAULT ('PB-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10)),
+  bill_number TEXT NOT NULL,
+  invoice_reference TEXT,
+  supplier_name TEXT NOT NULL,
+  supplier_phone TEXT,
+  project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
+  bill_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_method TEXT NOT NULL DEFAULT 'Bank Transfer' CHECK (payment_method IN ('Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other')),
+  payment_status TEXT NOT NULL DEFAULT 'Paid' CHECK (payment_status IN ('Paid', 'Pending', 'Partial')),
+  subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (subtotal >= 0),
+  tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (tax_amount >= 0),
+  total_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
+  linked_expense_id UUID REFERENCES public.expenses(id) ON DELETE SET NULL,
+  notes TEXT,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Repair path: purchase_bills created earlier by migration 004 / older full_schema
+ALTER TABLE public.purchase_bills
+  ADD COLUMN IF NOT EXISTS invoice_reference TEXT,
+  ADD COLUMN IF NOT EXISTS subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00;
+ALTER TABLE public.purchase_bills
+  ALTER COLUMN bill_code DROP NOT NULL,
+  ALTER COLUMN bill_code SET DEFAULT ('PB-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
+
+CREATE INDEX IF NOT EXISTS idx_purchase_bills_project_id ON public.purchase_bills (project_id) WHERE is_archived = FALSE;
+CREATE INDEX IF NOT EXISTS idx_purchase_bills_date ON public.purchase_bills (bill_date DESC) WHERE is_archived = FALSE;
+CREATE INDEX IF NOT EXISTS idx_purchase_bills_supplier ON public.purchase_bills (LOWER(supplier_name)) WHERE is_archived = FALSE;
+
+CREATE TABLE IF NOT EXISTS public.purchase_bill_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  purchase_bill_id UUID NOT NULL REFERENCES public.purchase_bills(id) ON DELETE CASCADE,
+  material_id UUID REFERENCES public.materials(id) ON DELETE SET NULL,
+  item_name TEXT NOT NULL,
+  description TEXT,
+  unit TEXT NOT NULL DEFAULT 'Piece',
+  quantity NUMERIC(12, 2) NOT NULL DEFAULT 1.00 CHECK (quantity > 0),
+  rate NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (rate >= 0),
+  amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (amount >= 0),
+  update_stock BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.purchase_bill_items
+  ADD COLUMN IF NOT EXISTS description TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_purchase_bill_items_bill_id ON public.purchase_bill_items (purchase_bill_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_bill_items_material_id ON public.purchase_bill_items (material_id);
+
+-- 16. MATERIAL TRANSACTIONS (purchase / project usage / adjustment)
+CREATE TABLE IF NOT EXISTS public.material_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id UUID NOT NULL REFERENCES public.materials(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
+  purchase_bill_id UUID REFERENCES public.purchase_bills(id) ON DELETE CASCADE,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('purchase', 'usage', 'adjustment')),
+  quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+  unit_rate NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (unit_rate >= 0),
+  total_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
+  supplier TEXT,
+  transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  reference_number TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_material_transactions_material_id ON public.material_transactions (material_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS idx_material_transactions_project_id ON public.material_transactions (project_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS idx_material_transactions_bill_id ON public.material_transactions (purchase_bill_id);
+
+-- 17. ATTACH UPDATED_AT TRIGGERS
 DROP TRIGGER IF EXISTS set_updated_at_profiles ON public.profiles;
 CREATE TRIGGER set_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
@@ -546,7 +730,26 @@ CREATE TRIGGER set_updated_at_team_members BEFORE UPDATE ON public.team_members 
 DROP TRIGGER IF EXISTS set_updated_at_project_work_updates ON public.project_work_updates;
 CREATE TRIGGER set_updated_at_project_work_updates BEFORE UPDATE ON public.project_work_updates FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
--- 14. ROW LEVEL SECURITY (RLS) POLICIES
+DROP TRIGGER IF EXISTS set_updated_at_team_attendance ON public.team_attendance;
+CREATE TRIGGER set_updated_at_team_attendance BEFORE UPDATE ON public.team_attendance FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS set_updated_at_materials ON public.materials;
+CREATE TRIGGER set_updated_at_materials BEFORE UPDATE ON public.materials FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS set_updated_at_purchase_bills ON public.purchase_bills;
+CREATE TRIGGER set_updated_at_purchase_bills BEFORE UPDATE ON public.purchase_bills FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS set_updated_at_material_transactions ON public.material_transactions;
+CREATE TRIGGER set_updated_at_material_transactions BEFORE UPDATE ON public.material_transactions FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- 18. TABLE PRIVILEGES (RLS decides WHICH rows; GRANT decides WHETHER the role may try)
+--     anon (not logged in) gets NO direct table access. Only the logged-in owner does.
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;
+
+-- 19. ROW LEVEL SECURITY (RLS) — STRICT OWNER-ONLY ACCESS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
@@ -561,6 +764,11 @@ ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_team_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_work_updates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.team_attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_bills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_bill_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.material_transactions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Owner can read own profile" ON public.profiles;
 CREATE POLICY "Owner can read own profile"
@@ -573,100 +781,31 @@ CREATE POLICY "Owner can update own profile"
   ON public.profiles FOR UPDATE
   TO authenticated
   USING (id = auth.uid() AND is_active = TRUE)
-  WITH CHECK (id = auth.uid() AND role = 'owner');
+  WITH CHECK (id = auth.uid() AND role = 'owner' AND is_active = TRUE);
 
-DROP POLICY IF EXISTS "Owner full access to business_settings" ON public.business_settings;
-CREATE POLICY "Owner full access to business_settings"
-  ON public.business_settings FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
+-- One owner-only "FULL ACCESS" policy per data table (SELECT / INSERT / UPDATE / DELETE)
+DO $$
+DECLARE
+  t TEXT;
+  tables TEXT[] := ARRAY[
+    'business_settings', 'clients', 'enquiries', 'projects', 'payments', 'expenses',
+    'activity_logs', 'quotations', 'quotation_items', 'team_members',
+    'project_team_assignments', 'project_work_updates', 'project_photos',
+    'team_attendance', 'materials', 'purchase_bills', 'purchase_bill_items',
+    'material_transactions'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Owner full access to ' || t, t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (public.is_owner()) WITH CHECK (public.is_owner())',
+      'Owner full access to ' || t, t
+    );
+  END LOOP;
+END;
+$$;
 
-DROP POLICY IF EXISTS "Owner full access to clients" ON public.clients;
-CREATE POLICY "Owner full access to clients"
-  ON public.clients FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to enquiries" ON public.enquiries;
-CREATE POLICY "Owner full access to enquiries"
-  ON public.enquiries FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to projects" ON public.projects;
-CREATE POLICY "Owner full access to projects"
-  ON public.projects FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to payments" ON public.payments;
-CREATE POLICY "Owner full access to payments"
-  ON public.payments FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to expenses" ON public.expenses;
-CREATE POLICY "Owner full access to expenses"
-  ON public.expenses FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to activity_logs" ON public.activity_logs;
-CREATE POLICY "Owner full access to activity_logs"
-  ON public.activity_logs FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to quotations" ON public.quotations;
-CREATE POLICY "Owner full access to quotations"
-  ON public.quotations FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to quotation_items" ON public.quotation_items;
-CREATE POLICY "Owner full access to quotation_items"
-  ON public.quotation_items FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to team_members" ON public.team_members;
-CREATE POLICY "Owner full access to team_members"
-  ON public.team_members FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to project_team_assignments" ON public.project_team_assignments;
-CREATE POLICY "Owner full access to project_team_assignments"
-  ON public.project_team_assignments FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to project_work_updates" ON public.project_work_updates;
-CREATE POLICY "Owner full access to project_work_updates"
-  ON public.project_work_updates FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
-DROP POLICY IF EXISTS "Owner full access to project_photos" ON public.project_photos;
-CREATE POLICY "Owner full access to project_photos"
-  ON public.project_photos FOR ALL
-  TO authenticated
-  USING (public.is_owner())
-  WITH CHECK (public.is_owner());
-
--- 15. STORAGE BUCKET & STORAGE RLS POLICIES
+-- 20. STORAGE BUCKET & STORAGE RLS POLICIES
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'project-photos',
@@ -719,7 +858,7 @@ CREATE POLICY "Public read approved shared project-photos objects"
     AND public.can_view_shared_project_photo(name)
   );
 
--- 16. SECURE PUBLIC CLIENT TRACKING RPC
+-- 21. SECURE PUBLIC CLIENT TRACKING RPC
 CREATE OR REPLACE FUNCTION public.get_public_project_tracking(p_token TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -827,3 +966,37 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_public_project_tracking(TEXT) TO anon, authenticated;
+
+-- 22. REFRESH THE API SCHEMA CACHE
+--     (without this, new tables/columns can answer "schema cache" errors and the app
+--      silently falls back to browser-only storage)
+NOTIFY pgrst, 'reload schema';
+
+-- ==============================================================================
+-- 23. VERIFY (the result grid below should show rls_enabled = true for every table)
+-- ==============================================================================
+SELECT c.relname AS table_name,
+       c.relrowsecurity AS rls_enabled,
+       (SELECT COUNT(*) FROM pg_policies p
+         WHERE p.schemaname = 'public' AND p.tablename = c.relname) AS policies
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relkind = 'r'
+ORDER BY c.relname;
+
+-- ------------------------------------------------------------------------------
+-- OPTIONAL HELPERS (run separately when needed)
+--
+-- A) Which login is the owner?  (every row must have a profile with is_active = true)
+--    SELECT u.email, p.role, p.is_active
+--    FROM auth.users u LEFT JOIN public.profiles p ON p.id = u.id;
+--
+-- B) Make a specific login an owner manually:
+--    INSERT INTO public.profiles (id, email, full_name, role, is_active)
+--    SELECT id, email, 'AKD Studio Principal', 'owner', TRUE
+--    FROM auth.users WHERE email = 'YOUR-LOGIN-EMAIL'
+--    ON CONFLICT (id) DO UPDATE SET role = 'owner', is_active = TRUE;
+--
+-- C) Also switch OFF "Allow new users to sign up" in
+--    Supabase Dashboard -> Authentication -> Sign In / Providers.
+-- ------------------------------------------------------------------------------

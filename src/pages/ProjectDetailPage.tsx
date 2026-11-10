@@ -28,6 +28,9 @@ import {
   RefreshCw,
   FolderKanban,
   FileSpreadsheet,
+  CalendarCheck,
+  Package,
+  ArrowUpRight,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
@@ -38,6 +41,7 @@ import {
   ProjectWorkUpdate,
   TeamMember,
   ProjectTeamAssignment,
+  TeamAttendance,
   Quotation,
   WorkStage,
   WORK_STAGES,
@@ -61,11 +65,15 @@ import { QuotationModal } from '@/components/modals/QuotationModal';
 import { QuotationPDFExportModal } from '@/components/modals/QuotationPDFExportModal';
 import { TeamMemberModal } from '@/components/modals/TeamMemberModal';
 import { AssignTeamMemberModal } from '@/components/modals/AssignTeamMemberModal';
+import { AttendanceModal } from '@/components/modals/AttendanceModal';
+import { MaterialTransactionModal } from '@/components/modals/MaterialTransactionModal';
+import { PurchaseBillModal } from '@/components/modals/PurchaseBillModal';
 
 type ProjectTab =
   | 'overview'
   | 'work_updates'
   | 'team'
+  | 'materials'
   | 'quotation'
   | 'payments_expenses'
   | 'documents';
@@ -80,12 +88,19 @@ export const ProjectDetailPage: React.FC = () => {
     quotations,
     teamMembers,
     teamAssignments,
+    teamAttendance,
+    materials,
+    materialTransactions,
+    purchaseBills,
     workUpdates,
     projectPhotos,
     updateProject,
     openQuickModal,
     deleteWorkUpdate,
     removeTeamAssignment,
+    deleteAttendance,
+    deleteMaterialTransaction,
+    archivePurchaseBill,
     createQuotationRevision,
     archiveQuotation,
     updateQuotation,
@@ -102,9 +117,15 @@ export const ProjectDetailPage: React.FC = () => {
     const tabParam = searchParams.get('tab') as ProjectTab | null;
     if (
       tabParam &&
-      ['overview', 'work_updates', 'team', 'quotation', 'payments_expenses', 'documents'].includes(
-        tabParam
-      )
+      [
+        'overview',
+        'work_updates',
+        'team',
+        'materials',
+        'quotation',
+        'payments_expenses',
+        'documents',
+      ].includes(tabParam)
     ) {
       setActiveTab(tabParam);
     }
@@ -141,10 +162,32 @@ export const ProjectDetailPage: React.FC = () => {
   const [editingQuotation, setEditingQuotation] = useState<Quotation | undefined>(undefined);
   const [pdfExportQuotation, setPdfExportQuotation] = useState<Quotation | null>(null);
 
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
+  const [editingAttendance, setEditingAttendance] = useState<TeamAttendance | null | undefined>(
+    undefined
+  );
+  const [defaultAttendanceMemberId, setDefaultAttendanceMemberId] = useState<string | undefined>(
+    undefined
+  );
+  const [materialTxModalOpen, setMaterialTxModalOpen] = useState(false);
+  const [purchaseBillModalOpen, setPurchaseBillModalOpen] = useState(false);
+
   // Confirmation Dialogs
   const [deleteUpdateTarget, setDeleteUpdateTarget] = useState<string | null>(null);
   const [removeTeamTarget, setRemoveTeamTarget] = useState<{ id: string; name: string } | null>(null);
   const [archiveQuoteTarget, setArchiveQuoteTarget] = useState<string | null>(null);
+  const [deleteAttendanceTarget, setDeleteAttendanceTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteMatTxTarget, setDeleteMatTxTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [archiveBillTarget, setArchiveBillTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Lightbox State
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -184,6 +227,27 @@ export const ProjectDetailPage: React.FC = () => {
     if (!projectId) return [];
     return teamAssignments.filter((a) => a.project_id === projectId);
   }, [projectId, teamAssignments]);
+
+  const projectAttendance = useMemo(() => {
+    if (!projectId) return [];
+    return teamAttendance
+      .filter((a) => a.project_id === projectId)
+      .sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+  }, [projectId, teamAttendance]);
+
+  const projectMaterialTransactions = useMemo(() => {
+    if (!projectId) return [];
+    return materialTransactions
+      .filter((t) => t.project_id === projectId)
+      .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
+  }, [projectId, materialTransactions]);
+
+  const projectPurchaseBills = useMemo(() => {
+    if (!projectId) return [];
+    return purchaseBills
+      .filter((b) => b.project_id === projectId)
+      .sort((a, b) => b.bill_date.localeCompare(a.bill_date));
+  }, [projectId, purchaseBills]);
 
   const projectQuotations = useMemo(() => {
     if (!projectId) return [];
@@ -510,7 +574,7 @@ export const ProjectDetailPage: React.FC = () => {
             }`}
           >
             <Users className="w-4 h-4" />
-            Team
+            Team &amp; Attendance
             <span
               className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                 activeTab === 'team'
@@ -520,6 +584,30 @@ export const ProjectDetailPage: React.FC = () => {
             >
               {projectAssignedTeam.length}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('materials')}
+            className={`py-3 px-1.5 border-b-2 font-semibold text-xs whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+              activeTab === 'materials'
+                ? 'border-[#5448ED] text-[#5448ED]'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Materials &amp; Usage
+            {projectMaterialTransactions.length + projectPurchaseBills.length > 0 && (
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                  activeTab === 'materials'
+                    ? 'bg-indigo-100 text-[#5448ED]'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {projectMaterialTransactions.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1090,7 +1178,7 @@ export const ProjectDetailPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -1107,9 +1195,20 @@ export const ProjectDetailPage: React.FC = () => {
                   setEditingAssignment(undefined);
                   setAssignTeamModalOpen(true);
                 }}
-                className="akd-btn-primary h-8 px-3.5 text-xs inline-flex items-center gap-1.5"
+                className="akd-btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5"
               >
                 <Users className="w-3.5 h-3.5" /> Assign to Project
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAttendance(null);
+                  setDefaultAttendanceMemberId(undefined);
+                  setAttendanceModalOpen(true);
+                }}
+                className="akd-btn-primary h-8 px-3.5 text-xs inline-flex items-center gap-1.5"
+              >
+                <CalendarCheck className="w-3.5 h-3.5" /> Mark Site Attendance
               </button>
             </div>
           </div>
@@ -1283,6 +1382,18 @@ export const ProjectDetailPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
+                                  setEditingAttendance(undefined);
+                                  setDefaultAttendanceMemberId(member.id);
+                                  setAttendanceModalOpen(true);
+                                }}
+                                className="px-2 py-1 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 inline-flex items-center gap-1 mr-1"
+                                title="Mark Attendance for this Member"
+                              >
+                                <CalendarCheck className="w-3 h-3" /> Attendance
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
                                   setEditingAssignment(assignment);
                                   setAssignTeamModalOpen(true);
                                 }}
@@ -1314,6 +1425,136 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Project Site Attendance History */}
+          <div className="akd-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">
+                  Site Attendance History ({projectAttendance.length})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Date-wise IN/OUT times, automatically calculated working hours, and attendance status for this project
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-[11px]">
+                <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Present: {projectAttendance.filter((a) => a.status === 'Present').length}
+                </span>
+                <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Half Day: {projectAttendance.filter((a) => a.status === 'Half Day').length}
+                </span>
+                <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  Total Hours:{' '}
+                  {projectAttendance
+                    .reduce((sum, a) => sum + (Number(a.working_hours) || 0), 0)
+                    .toFixed(1)}{' '}
+                  hrs
+                </span>
+              </div>
+            </div>
+
+            {projectAttendance.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                No attendance logged for this project site yet. Click &ldquo;Mark Site Attendance&rdquo; above to log daily entries.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                      <th className="py-2.5 px-4">Date</th>
+                      <th className="py-2.5 px-4">Team Member</th>
+                      <th className="py-2.5 px-4">Status</th>
+                      <th className="py-2.5 px-4">IN — OUT Time</th>
+                      <th className="py-2.5 px-4 text-right">Working Hours</th>
+                      <th className="py-2.5 px-4">Notes</th>
+                      <th className="py-2.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {projectAttendance.map((att) => {
+                      const member = teamMembers.find((m) => m.id === att.team_member_id);
+                      return (
+                        <tr key={att.id} className="hover:bg-slate-50/70">
+                          <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                            {formatDate(att.attendance_date)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-slate-900 block">
+                              {member?.full_name || 'Team Member'}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {member?.role || '—'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                att.status === 'Present'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : att.status === 'Half Day'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                            >
+                              {att.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">
+                            {att.status === 'Absent'
+                              ? '—'
+                              : `${att.in_time ? att.in_time.slice(0, 5) : '—'} – ${
+                                  att.out_time ? att.out_time.slice(0, 5) : '—'
+                                }`}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
+                            {att.status === 'Absent'
+                              ? '0 hrs'
+                              : `${Number(att.working_hours || 0).toFixed(2).replace(/\.00$/, '')} hrs`}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate">
+                            {att.notes || '—'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAttendance(att);
+                                  setDefaultAttendanceMemberId(undefined);
+                                  setAttendanceModalOpen(true);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-slate-800"
+                                title="Edit Attendance"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeleteAttendanceTarget({
+                                    id: att.id,
+                                    name: `${member?.full_name || 'Member'} (${formatDate(
+                                      att.attendance_date
+                                    )})`,
+                                  })
+                                }
+                                className="p-1 rounded text-slate-400 hover:text-rose-600"
+                                title="Delete Attendance"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* Studio Team Directory Reference */}
           <div className="akd-card overflow-hidden">
@@ -1390,6 +1631,271 @@ export const ProjectDetailPage: React.FC = () => {
             <span>
               <strong>Privacy Guaranteed:</strong> Team member phone numbers, notes, and assignment details are strictly internal and will never appear on the client's public tracking portal.
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 3B: MATERIALS & USAGE
+      ===================================================================== */}
+      {activeTab === 'materials' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-xl border border-slate-200">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 font-display">
+                Project Materials, Stock Usage &amp; Supplier Bills
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Track material consumption from studio stock and supplier purchase bills linked to {project.project_name}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMaterialTxModalOpen(true)}
+                className="akd-btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5 text-amber-600" /> Record Material Usage
+              </button>
+              <button
+                type="button"
+                onClick={() => setPurchaseBillModalOpen(true)}
+                className="akd-btn-primary h-8 px-3 text-xs inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Purchase Bill
+              </button>
+            </div>
+          </div>
+
+          {/* Summary KPI Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="akd-card p-4">
+              <span className="text-xs font-medium text-slate-500 block">
+                Material Usage Value
+              </span>
+              <span className="text-xl font-extrabold text-amber-700 font-display mt-1 block">
+                {formatINR(
+                  projectMaterialTransactions
+                    .filter((tx) => tx.transaction_type === 'usage')
+                    .reduce((sum, tx) => sum + (Number(tx.total_amount) || 0), 0)
+                )}
+              </span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
+                {projectMaterialTransactions.filter((tx) => tx.transaction_type === 'usage').length} usage entries from stock
+              </span>
+            </div>
+
+            <div className="akd-card p-4">
+              <span className="text-xs font-medium text-slate-500 block">
+                Linked Supplier Purchase Bills
+              </span>
+              <span className="text-xl font-extrabold text-indigo-700 font-display mt-1 block">
+                {formatINR(
+                  projectPurchaseBills.reduce(
+                    (sum, bill) => sum + (Number(bill.total_amount) || 0),
+                    0
+                  )
+                )}
+              </span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
+                {projectPurchaseBills.length} supplier bill{projectPurchaseBills.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div className="akd-card p-4">
+              <span className="text-xs font-medium text-slate-500 block">
+                Available Studio Catalogue Items
+              </span>
+              <span className="text-xl font-extrabold text-slate-900 font-display mt-1 block">
+                {materials.filter((m) => !m.is_archived).length}
+              </span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
+                Reusable materials in studio inventory
+              </span>
+            </div>
+          </div>
+
+          {/* Project Material Usage & Stock Movement Log */}
+          <div className="akd-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">
+                  Project Material Usage &amp; Stock Movements ({projectMaterialTransactions.length})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Materials consumed on this site or purchased specifically for this project
+                </p>
+              </div>
+            </div>
+
+            {projectMaterialTransactions.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                No material usage recorded for this project yet. Click &ldquo;Record Material Usage&rdquo; to issue materials from stock.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                      <th className="py-2.5 px-4">Date</th>
+                      <th className="py-2.5 px-4">Type</th>
+                      <th className="py-2.5 px-4">Material Item</th>
+                      <th className="py-2.5 px-4 text-right">Quantity</th>
+                      <th className="py-2.5 px-4 text-right">Unit Rate</th>
+                      <th className="py-2.5 px-4 text-right">Total Cost</th>
+                      <th className="py-2.5 px-4">Supplier / Notes</th>
+                      <th className="py-2.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {projectMaterialTransactions.map((tx) => {
+                      const mat = materials.find((m) => m.id === tx.material_id);
+                      const isUsage = tx.transaction_type === 'usage';
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/70">
+                          <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                            {formatDate(tx.transaction_date)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                isUsage
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
+                              {isUsage ? 'Project Usage' : 'Stock Purchase'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-slate-900 block">
+                              {mat?.item_name || 'Catalogue Item'}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {mat?.category || 'Material'}
+                            </span>
+                          </td>
+                          <td
+                            className={`py-3 px-4 text-right font-mono font-bold ${
+                              isUsage ? 'text-amber-700' : 'text-emerald-700'
+                            }`}
+                          >
+                            {isUsage ? '-' : '+'}
+                            {tx.quantity} {mat?.unit || ''}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-700">
+                            {formatINR(tx.unit_rate)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
+                            {formatINR(tx.total_amount)}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate">
+                            {tx.supplier ? `${tx.supplier} • ` : ''}
+                            {tx.notes || '—'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {!tx.purchase_bill_id ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeleteMatTxTarget({
+                                    id: tx.id,
+                                    name: `${mat?.item_name || 'Material'} (${tx.quantity} ${
+                                      mat?.unit || ''
+                                    })`,
+                                  })
+                                }
+                                className="p-1 rounded text-slate-400 hover:text-rose-600"
+                                title="Delete & Reverse Stock Impact"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">Via Bill</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Project Purchase Bills */}
+          <div className="akd-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">
+                  Supplier Purchase Bills for {project.project_name} ({projectPurchaseBills.length})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Itemized material purchase invoices linked to this project
+                </p>
+              </div>
+            </div>
+
+            {projectPurchaseBills.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                No supplier purchase bills linked to this project yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {projectPurchaseBills.map((bill) => (
+                  <div key={bill.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-xs font-bold">
+                          {bill.bill_number}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900">
+                          {bill.supplier_name}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          • {formatDate(bill.bill_date)}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            bill.payment_status === 'Paid'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : bill.payment_status === 'Partial'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
+                        >
+                          {bill.payment_status}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {(bill.items || [])
+                          .map((it) => `${it.item_name} (${it.quantity} ${it.unit})`)
+                          .join(', ')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-extrabold text-slate-900 font-display">
+                        {formatINR(bill.total_amount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setArchiveBillTarget({
+                            id: bill.id,
+                            name: `${bill.bill_number} (${bill.supplier_name})`,
+                          })
+                        }
+                        className="p-1.5 rounded text-slate-400 hover:text-rose-600"
+                        title="Archive Bill"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2139,6 +2645,85 @@ export const ProjectDetailPage: React.FC = () => {
         title="Archive Quotation?"
         description="This quotation will be removed from your active list. Previous revisions are preserved."
         confirmLabel="Archive Quotation"
+        variant="danger"
+      />
+
+      {/* 10. Site Attendance Modal */}
+      {attendanceModalOpen && (
+        <AttendanceModal
+          isOpen={attendanceModalOpen}
+          onClose={() => {
+            setAttendanceModalOpen(false);
+            setEditingAttendance(undefined);
+            setDefaultAttendanceMemberId(undefined);
+          }}
+          defaultProjectId={project.id}
+          defaultMemberId={defaultAttendanceMemberId}
+          editRecord={editingAttendance}
+        />
+      )}
+
+      {/* 11. Material Usage / Stock Transaction Modal */}
+      {materialTxModalOpen && (
+        <MaterialTransactionModal
+          isOpen={materialTxModalOpen}
+          onClose={() => setMaterialTxModalOpen(false)}
+          defaultType="usage"
+          defaultProjectId={project.id}
+        />
+      )}
+
+      {/* 12. Purchase Bill Modal */}
+      {purchaseBillModalOpen && (
+        <PurchaseBillModal
+          isOpen={purchaseBillModalOpen}
+          onClose={() => setPurchaseBillModalOpen(false)}
+          defaultProjectId={project.id}
+        />
+      )}
+
+      {/* 13. Confirm Delete Attendance Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteAttendanceTarget)}
+        onClose={() => setDeleteAttendanceTarget(null)}
+        onConfirm={async () => {
+          if (!deleteAttendanceTarget) return;
+          await deleteAttendance(deleteAttendanceTarget.id);
+          setDeleteAttendanceTarget(null);
+        }}
+        title="Delete Site Attendance?"
+        description={`Are you sure you want to delete the attendance record for ${deleteAttendanceTarget?.name || 'this member'}?`}
+        confirmLabel="Delete Record"
+        variant="danger"
+      />
+
+      {/* 14. Confirm Delete Material Usage Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteMatTxTarget)}
+        onClose={() => setDeleteMatTxTarget(null)}
+        onConfirm={async () => {
+          if (!deleteMatTxTarget) return;
+          await deleteMaterialTransaction(deleteMatTxTarget.id);
+          setDeleteMatTxTarget(null);
+        }}
+        title="Delete Material Entry & Restore Stock?"
+        description={`Deleting "${deleteMatTxTarget?.name || ''}" will automatically reverse its quantity change in available studio stock.`}
+        confirmLabel="Delete & Reverse Stock"
+        variant="danger"
+      />
+
+      {/* 15. Confirm Archive Purchase Bill Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(archiveBillTarget)}
+        onClose={() => setArchiveBillTarget(null)}
+        onConfirm={async () => {
+          if (!archiveBillTarget) return;
+          await archivePurchaseBill(archiveBillTarget.id);
+          setArchiveBillTarget(null);
+        }}
+        title="Archive Purchase Bill?"
+        description={`Are you sure you want to archive bill "${archiveBillTarget?.name || ''}"?`}
+        confirmLabel="Archive Bill"
         variant="danger"
       />
     </div>

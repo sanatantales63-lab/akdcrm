@@ -17,6 +17,8 @@ import {
   FolderPlus,
   PlusCircle,
   FileSpreadsheet,
+  CalendarCheck,
+  Package,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useAuth } from '@/context/AuthContext';
@@ -109,6 +111,8 @@ export const SwipeMobileNav: React.FC = () => {
           onClick={() => setMoreDrawerOpen(true)}
           className={`swipe-nav-btn ${
             isActive('/enquiries') ||
+            isActive('/attendance') ||
+            isActive('/materials') ||
             isActive('/expenses') ||
             isActive('/reports') ||
             isActive('/settings')
@@ -292,6 +296,38 @@ export const SwipeMobileNav: React.FC = () => {
                   >
                     <MessageSquareMore className="w-4 h-4 text-amber-600" />
                     <span>Enquiries &amp; Leads</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreDrawerOpen(false);
+                      navigate('/attendance');
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      isActive('/attendance')
+                        ? 'bg-[#EEF2FF] text-[#5448ED]'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CalendarCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Team &amp; Attendance</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreDrawerOpen(false);
+                      navigate('/materials');
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      isActive('/materials')
+                        ? 'bg-[#EEF2FF] text-[#5448ED]'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Package className="w-4 h-4 text-indigo-600" />
+                    <span>Materials &amp; Stock</span>
                   </button>
 
                   <button

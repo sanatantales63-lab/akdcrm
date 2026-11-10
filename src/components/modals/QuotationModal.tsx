@@ -41,6 +41,7 @@ interface QuotationModalProps {
 
 interface BOQDraftItem {
   id: string;
+  material_id?: string | null;
   item_name: string;
   description: string;
   quantity: number;
@@ -64,6 +65,7 @@ function addDaysISO(baseIso: string, days: number): string {
 
 const createEmptyBOQRow = (): BOQDraftItem => ({
   id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  material_id: null,
   item_name: '',
   description: '',
   quantity: 1,
@@ -82,6 +84,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const {
     clients,
     projects,
+    materials,
     settings,
     createQuotation,
     updateQuotation,
@@ -165,6 +168,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         .sort((a, b) => a.sort_order - b.sort_order)
         .map((it) => ({
           id: it.id,
+          material_id: it.material_id || null,
           item_name: it.item_name,
           description: it.description || '',
           quantity: it.quantity,
@@ -228,6 +232,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
           .sort((a, b) => a.sort_order - b.sort_order)
           .map((it) => ({
             id: it.id,
+            material_id: it.material_id || null,
             item_name: it.item_name,
             description: it.description || '',
             quantity: it.quantity,
@@ -460,6 +465,29 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     );
   };
 
+  const handleSelectCatalogueItem = (index: number, matId: string) => {
+    if (!matId) {
+      handleItemChange(index, 'material_id', null);
+      return;
+    }
+    const mat = materials.find((m) => m.id === matId);
+    if (!mat) return;
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === index
+          ? {
+              ...it,
+              material_id: mat.id,
+              item_name: mat.item_name,
+              unit: mat.unit || it.unit,
+              rate: mat.purchase_rate,
+              description: it.description || mat.notes || '',
+            }
+          : it
+      )
+    );
+  };
+
   const persistQuotation = async (openExportAfterSave: boolean) => {
     const emptyItems = items.filter((it) => !it.item_name.trim());
     if (emptyItems.length > 0) {
@@ -529,6 +557,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         const qty = Math.max(0.01, Number(it.quantity) || 1);
         const rate = Math.max(0, Number(it.rate) || 0);
         return {
+          material_id: it.material_id || null,
           item_name: it.item_name.trim(),
           description: it.description.trim() || undefined,
           quantity: qty,
@@ -734,10 +763,31 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   key={it.id || idx}
                   className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/60 hover:bg-slate-50 space-y-2.5 transition-colors"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold font-mono px-2 py-0.5 rounded bg-slate-200/80 text-slate-700">
-                      Item #{idx + 1}
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold font-mono px-2 py-0.5 rounded bg-slate-200/80 text-slate-700">
+                        Item #{idx + 1}
+                      </span>
+                      {materials.length > 0 && (
+                        <select
+                          value={it.material_id || ''}
+                          onChange={(e) =>
+                            handleSelectCatalogueItem(idx, e.target.value)
+                          }
+                          className="text-[11px] px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-hidden focus:border-indigo-500"
+                          title="Optionally pick an item from the Materials Catalogue to pre-fill description, unit & rate (never deducts stock)"
+                        >
+                          <option value="">
+                            + Pick from Materials Catalogue (Optional — Manual Entry Preserved)
+                          </option>
+                          {materials.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.item_name} ({formatINR(m.purchase_rate)}/{m.unit})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-1">
                       <button
